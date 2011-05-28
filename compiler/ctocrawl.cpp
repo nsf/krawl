@@ -1,4 +1,4 @@
-#include "crawl.hpp"
+#include "crawlc.hpp"
 #include <sys/stat.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
@@ -174,7 +174,7 @@ struct mini_all_t {
 std::string update_c_module_hash(const char *header)
 {
 	// compute paths
-	std::string cachedir = get_xdg_cache_dir() + "/crawl";
+	std::string cachedir = get_xdg_cache_dir() + "/crawlc";
 	std::string cachefile = cachedir + "/" + cityhash64str(header);
 	std::string brlfile = cachefile + ".brl";
 
@@ -200,7 +200,7 @@ std::string update_c_module_hash(const char *header)
 
 	// execute clang plugin and grab its output
 	std::string cmd;
-	cppsprintf(&cmd, "clang -cc1 -load %s/lib/crawl/libctocrawl.%s -plugin "
+	cppsprintf(&cmd, "clang -cc1 -load %s/lib/crawlc/libctocrawl.%s -plugin "
 		   "c-to-crawl -x c %s", CRAWL_INSTALL_PREFIX, plugin_ext.c_str(), headerfile.c_str());
 
 	std::vector<char> output;

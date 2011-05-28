@@ -1,725 +1,281 @@
-#include "crawl.hpp"
-#include <string.h>
+#include "crawlc.hpp"
+#include <llvm/LLVMContext.h>
+#include <llvm/Module.h>
+#include <llvm/Type.h>
+#include <llvm/PassManager.h>
+#include <llvm/DerivedTypes.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/FormattedStream.h>
+#include <llvm/Support/IRBuilder.h>
+#include <llvm/Support/Host.h>
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/Analysis/Verifier.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetRegistry.h>
+#include <llvm/Target/TargetData.h>
+#include <llvm/Target/TargetSelect.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
-static const char *nil_value_for_type(stype_t *t)
-{
-	if (t->type & STYPE_BOOL)
-		return "false";
-	else if (t->type & STYPE_FLOAT)
-		return "0.0";
-	else if (t->type & (STYPE_INT | STYPE_POINTER | STYPE_FUNC))
-		return "0";
-	else if (t->type & (STYPE_ARRAY | STYPE_STRUCT))
-		return "{0}";
-	return "???";
-}
+using namespace llvm;
 
-static const char *token_to_sym(int tok)
-{
-	switch (tok) {
-	case TOK_OROR: return "||";
-	case TOK_ANDAND: return "&&";
-	case TOK_EQ: return "==";
-	case TOK_NEQ: return "!=";
-	case TOK_LT: return "<";
-	case TOK_LE: return "<=";
-	case TOK_GT: return ">";
-	case TOK_GE: return ">=";
-	case TOK_PLUS: return "+";
-	case TOK_MINUS: return "-";
-	case TOK_OR: return "|";
-	case TOK_XOR: return "^";
-	case TOK_DIVIDE: return "/";
-	case TOK_TIMES: return "*";
-	case TOK_MOD: return "%";
-	case TOK_SHIFTL: return "<<";
-	case TOK_SHIFTR: return ">>";
-	case TOK_AND: return "&";
-	case TOK_ANDNOT: return "&^";
-	case TOK_A_PLUS: return "+=";
-	case TOK_A_MINUS: return "-=";
-	case TOK_A_OR: return "|=";
-	case TOK_A_XOR: return "^=";
-	case TOK_A_DIVIDE: return "/=";
-	case TOK_A_TIMES: return "*=";
-	case TOK_A_MOD: return "%=";
-	case TOK_A_SHIFTL: return "<<=";
-	case TOK_A_SHIFTR: return ">>=";
-	case TOK_A_AND: return "&=";
-	case TOK_A_ANDNOT: return "&^=";
-	case TOK_ASSIGN: return "=";
-	case TOK_DECLARIZE: return ":=";
-	case TOK_INC: return "++";
-	case TOK_DEC: return "--";
-	case TOK_SEMICOLON: return ";";
-	case TOK_RETURN: return "return";
-	case TOK_IF: return "if";
-	case TOK_ELSE: return "else";
-	case TOK_FOR: return "for";
-	case TOK_LCURLY: return "{";
-	case TOK_RCURLY: return "}";
-	case TOK_IMPORT: return "import";
-	case TOK_LPAREN: return "(";
-	case TOK_RPAREN: return ")";
-	case TOK_TYPE: return "type";
-	case TOK_CONST: return "const";
-	case TOK_VAR: return "var";
-	case TOK_FUNC: return "func";
-	case TOK_LSB: return "[";
-	case TOK_RSB: return "]";
-	case TOK_DOT: return ".";
-	case TOK_STRUCT: return "struct";
-	case TOK_COMMA: return ",";
-	case TOK_NOT: return "!";
-	// TODO: list is incomplete
-	}
-	return "???";
-}
+#define LLGC (getGlobalContext())
 
-void pass3_t::append_indent(std::string *out)
-{
-	for (int i = 0; i < indent; ++i)
-		out->append(1, '\t');
-}
-
-std::string pass3_t::gen_tmpname()
-{
-	std::string out;
-	cppsprintf(&out, "__tmp%d", tmp_n++);
-	return out;
-}
-
-const char *pass3_t::tuple_to_struct(stype_vector_t *tuple)
-{
-	std::string def = "{";
-	for (size_t i = 0, n = tuple->size(); i < n; ++i) {
-		stype_t *t = tuple->at(i);
-		def += " ";
-		def += ctype(t);
-		cppsprintf(&def, " _%d;", i);
-	}
-	def += " };";
-
-	unordered_map<std::string, std::string>::iterator it;
-	it = tmp_structs.find(def);
-	if (it == tmp_structs.end()) {
-		std::string tmpname = std::string("struct ") + gen_tmpname();
-		tmp_structs[def] = tmpname;
-		cppsprintf(&tmp_struct_defs, "%s %s\n",
-			   tmpname.c_str(), def.c_str());
-		return tmp_structs[def].c_str();
-	}
-
-	return it->second.c_str();
-}
-
-const char *pass3_t::array_to_struct(array_stype_t *ast)
-{
-	std::string def;
-	cppsprintf(&def, "{ %s _[%u]; };",
-		   ctype(ast->elem).c_str(),
-		   ast->size);
-
-	unordered_map<std::string, std::string>::iterator it;
-	it = tmp_structs.find(def);
-	if (it == tmp_structs.end()) {
-		std::string tmpname = std::string("struct ") + gen_tmpname();
-		tmp_structs[def] = tmpname;
-		cppsprintf(&tmp_struct_defs, "%s %s\n",
-			   tmpname.c_str(), def.c_str());
-		return tmp_structs[def].c_str();
-	}
-
-	return it->second.c_str();
-}
-
-const char *pass3_t::struct_to_struct(struct_stype_t *sst)
-{
-	std::string def;
-	def += "{";
-	for (size_t i = 0, n = sst->fields.size(); i < n; ++i) {
-		struct_field_t *f = &sst->fields[i];
-		def += " ";
-		def += ctype(f->type);
-		def += " ";
-		def += f->name;
-		def += ";";
-	}
-	def += " };";
-
-	unordered_map<std::string, std::string>::iterator it;
-	it = tmp_structs.find(def);
-	if (it == tmp_structs.end()) {
-		std::string tmpname = std::string("struct ") + gen_tmpname();
-		tmp_structs[def] = tmpname;
-		cppsprintf(&tmp_struct_defs, "%s %s\n",
-			   tmpname.c_str(), def.c_str());
-		return tmp_structs[def].c_str();
-	}
-
-	return it->second.c_str();
-}
-
-struct side_effect_extractor_t : ast_visitor_t {
-	std::vector<std::string> *out;
-	pass3_t *pass;
-	bool skip_first_call_expr;
-
-	ast_visitor_t *visit(node_t *n)
-	{
-		switch (n->type) {
-		case node_t::CALL_EXPR:
-			return visit_call_expr((call_expr_t*)n);
-		case node_t::COMPOUND_LIT:
-			return visit_compound_lit((compound_lit_t*)n);
-		default:
-			break;
-		}
-
-		return this;
-	}
-
-	ast_visitor_t *visit_call_expr(call_expr_t *e)
-	{
-		if (skip_first_call_expr) {
-			skip_first_call_expr = false;
-			return this;
-		}
-
-		for (size_t i = 0, n = e->args.size(); i < n; ++i) {
-			side_effect_extractor_t see;
-			see.out = out;
-			see.pass = pass;
-			see.skip_first_call_expr = false;
-			see.traverse(e->args[i]);
-		}
-
-		std::string name = pass->gen_tmpname();
-		stype_t *type = e->vst.stype;
-
-		std::string stmt;
-		cppsprintf(&stmt, "%s %s = %s;",
-			   pass->ctype(type).c_str(),
-			   name.c_str(),
-			   pass->codegen_expr(e).c_str());
-
-		e->tmp = name;
-		out->push_back(stmt);
-		return 0;
-	}
-
-	ast_visitor_t *visit_compound_lit(compound_lit_t *e)
-	{
-		// TODO: ugly copy & paste here, remove?
-		for (size_t i = 0, n = e->elts.size(); i < n; ++i) {
-			side_effect_extractor_t see;
-			see.out = out;
-			see.pass = pass;
-			see.skip_first_call_expr = skip_first_call_expr;
-			see.traverse(e->elts[i]);
-
-			skip_first_call_expr = see.skip_first_call_expr;
-		}
-
-		std::string name = pass->gen_tmpname();
-		stype_t *type = e->vst.stype;
-
-		std::string stmt;
-		cppsprintf(&stmt, "%s %s = %s;",
-			   pass->ctype(type).c_str(),
-			   name.c_str(),
-			   pass->codegen_expr(e).c_str());
-
-		e->tmp = name;
-		out->push_back(stmt);
-		return 0;
-	}
+struct cur_loop_t {
+	BasicBlock *continue_;
+	BasicBlock *break_;
 };
 
-void pass3_t::extract_side_effects(std::vector<std::string> *out, node_t *expr)
+struct llvm_backend_t {
+	std::string uid;
+	scope_block_t *pkgscope;
+	std::vector<import_sdecl_t*> *used_extern_sdecls;
+	const char *out_name;
+	std::vector<const char*> *libs;
+	bool dump;
+
+	Module *module;
+	IRBuilder<> *ir;
+	IRBuilder<> *ir_alloca;
+	IRBuilder<> *ir_init;
+
+	func_sdecl_t *cur_func_decl;
+
+	// for flow instructions
+	cur_loop_t *cur_loop;
+
+	// for switch statements
+	SwitchInst *cur_switch;
+	BasicBlock *cur_switch_end;
+	bool ended_with_fallthrough;
+
+	Constant *llvmconst(value_t *val, const Type *ty);
+	const Type *llvmrettype(func_stype_t *fst);
+	FunctionType *llvmfunctype(func_stype_t *fst);
+	const Type *llvmtype(stype_t *st);
+
+	IRBuilder<> *create_init_func();
+	void finalize_init_func();
+
+	void codegen_MRV(std::vector<Value*> *values,
+			 std::vector<stype_t*> *vtypes, node_t *callexpr);
+	void codegen_switch_stmt_case(switch_stmt_case_t *stmt);
+	void codegen_switch_stmt(switch_stmt_t *stmt);
+	void codegen_flow_stmt(flow_stmt_t *stmt);
+	void codegen_for_stmt(for_stmt_t *stmt);
+	void codegen_ifelse_stmt(ifelse_stmt_t *stmt);
+	void codegen_incdec_stmt(incdec_stmt_t *stmt);
+	void codegen_compound_assign_stmt(assign_stmt_t *stmt);
+	void codegen_assign_stmt(assign_stmt_t *stmt);
+	void codegen_var_spec(value_spec_t *spec);
+	void codegen_decl_stmt(decl_stmt_t *stmt);
+	void codegen_return_stmt(return_stmt_t *stmt);
+	void codegen_block_stmt(block_stmt_t *stmt);
+	void codegen_stmt(node_t *stmt);
+
+	Value *codegen_assignment(Value *expr, stype_t *from, stype_t *to);
+	Value *codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
+				       stype_t *lt, stype_t *rt, int tok);
+	Value *codegen_binary_expr(binary_expr_t *e);
+	Value *codegen_unary_expr(unary_expr_t *e);
+	Value *codegen_type_cast_expr(type_cast_expr_t *e);
+	Value *codegen_call_expr(call_expr_t *e);
+	Value *codegen_compound_lit(compound_lit_t *e);
+	Value *codegen_expr_addr(node_t *e);
+	Value *codegen_expr_value(node_t *e);
+	Value *codegen_load(Value *addr, stype_t *ty);
+	Value *codegen_store(Value *val, Value *addr, stype_t *ty);
+
+	Value *codegen_cexpr_value(node_t *e);
+	Value *codegen_cexpr_store(Value *val, Value *addr, node_t *e);
+
+	void codegen_init_deps(node_t *e);
+	void codegen_init(var_sdecl_t *d);
+
+	void codegen_top_extern_sdecls(import_sdecl_t *isd);
+	void codegen_top_func_pre(func_sdecl_t *fsd, const char *prefix);
+	void codegen_top_func(func_sdecl_t *fsd);
+	void codegen_top_var_pre(var_sdecl_t *vsd);
+	void codegen_top_var(var_sdecl_t *vsd);
+	void codegen_top_sdecl_pre(sdecl_t *d);
+	void codegen_top_sdecl(sdecl_t *d);
+	void codegen_top_sdecls(std::vector<const char*> *pkgdecls);
+
+	// Interface
+	void pass(std::vector<const char*> *pkgdecls);
+};
+
+static bool is_bb_terminated(BasicBlock *bb)
 {
-	side_effect_extractor_t see;
-	see.out = out;
-	see.pass = this;
-	see.skip_first_call_expr = expr->type == node_t::CALL_EXPR;
-	see.traverse(expr);
+	return isa<TerminatorInst>(bb->back());
 }
 
-std::string pass3_t::codegen_value(value_stype_t *vst)
+static void insert_opt_endjmp(IRBuilder<> *ir, BasicBlock *E)
 {
-	std::string out;
-	out += "(";
-	out += ctype(vst->stype);
-	out += ")";
-	out += vst->value.to_literal();
-	return out;
+	if (ir->GetInsertBlock()->empty() ||
+	    !is_bb_terminated(ir->GetInsertBlock()))
+	{
+		ir->CreateBr(E);
+	}
 }
 
-std::string pass3_t::codegen_pointer_binary_expr(binary_expr_t *expr)
+static void finalize_function(IRBuilder<> *ir, bool insert_void_ret)
 {
-	stype_t *lhs = expr->lhs->vst.stype->end_type();
-	stype_t *rhs = expr->rhs->vst.stype->end_type();
+	BasicBlock *bb = ir->GetInsertBlock();
+	// no predecessors
+	if (&bb->getParent()->front() != bb && pred_begin(bb) == pred_end(bb)) {
+		bb->eraseFromParent();
+		return;
+	}
 
-	std::string out;
-	out += "(";
-	if (lhs->type & STYPE_INT) {
-		CRAWL_QASSERT(rhs->type & STYPE_POINTER);
-		cppsprintf(&out, "%d*%s",
-			   ((pointer_stype_t*)rhs)->points_to->bits() / 8,
-			   codegen_expr(expr->lhs).c_str());
-	} else
-		out += codegen_expr(expr->lhs);
-
-	out += " ";
-	out += token_to_sym(expr->tok);
-	out += " ";
-
-	if (rhs->type & STYPE_INT) {
-		CRAWL_QASSERT(lhs->type & STYPE_POINTER);
-		cppsprintf(&out, "%d*%s",
-			   ((pointer_stype_t*)lhs)->points_to->bits() / 8,
-			   codegen_expr(expr->rhs).c_str());
-	} else
-		out += codegen_expr(expr->rhs);
-	out += ")";
-	return out;
+	if (insert_void_ret)
+		ir->CreateRetVoid();
 }
 
-std::string pass3_t::codegen_pointer_unary_expr(unary_expr_t *expr)
+Constant *llvm_backend_t::llvmconst(value_t *val, const Type *ty)
 {
-	std::string out;
-	stype_t *t = expr->expr->vst.stype->end_type();
-	if (expr->tok == TOK_TIMES) {
-		// pointer dereference
-		CRAWL_QASSERT(t->type & STYPE_POINTER);
-		cppsprintf(&out, "*(%s*)%s",
-			   ctype(((pointer_stype_t*)t)->points_to).c_str(),
-			   codegen_expr(expr->expr).c_str());
+	switch (val->type) {
+	case VALUE_STRING:
+	{
+		ArrayType *straty = ArrayType::get(IntegerType::get(LLGC, 8),
+						   strlen(val->xstr) + 1);
+		Constant *strc = ConstantArray::get(LLGC, val->xstr);
+		GlobalVariable *strcp;
+		strcp = new GlobalVariable(*module, straty,
+					   true, GlobalValue::PrivateLinkage,
+					   strc, ".str");
+
+		Constant *zero = ConstantInt::getNullValue(Type::getInt32Ty(LLGC));
+		Constant *zeros[] = {zero, zero};
+		return ConstantExpr::getGetElementPtr(strcp, zeros, 2);
+	}
+	case VALUE_INT:
+	{
+		std::string i = val->to_string();
+		if (ty->isPointerTy()) {
+			const IntegerType *ity = IntegerType::get(LLGC, sizeof(void*) * 8);
+			Constant *c = ConstantInt::get(ity, i, 10);
+			return ConstantExpr::getIntToPtr(c, ty);
+		}
+		return ConstantInt::get(cast<IntegerType>(ty), i, 10);
+	}
+	case VALUE_FLOAT:
+	{
+		double d = mpfr_get_d(val->xfloat, MPFR_RNDN);
+		return ConstantFP::get(ty, d);
+	}
+	default:
+		CRAWL_QASSERT(!"invalid value");
+		return 0;
+	}
+}
+
+const Type *llvm_backend_t::llvmrettype(func_stype_t *fst)
+{
+	if (fst->results.size() == 0) {
+		return Type::getVoidTy(LLGC);
+	} else if (fst->results.size() == 1) {
+		return llvmtype(fst->results[0]);
 	} else {
-		// address of
-		cppsprintf(&out, "(uint8_t*)&%s",
-			   codegen_expr(expr->expr).c_str());
+		std::vector<const Type*> fields;
+		fields.reserve(fst->results.size());
+		for (size_t i = 0, n = fst->results.size(); i < n; ++i)
+			fields.push_back(llvmtype(fst->results[i]));
+
+		return StructType::get(LLGC, fields);
 	}
-	return out;
 }
 
-std::string pass3_t::codegen_expr_for_call(node_t *expr, func_stype_t *fst)
+FunctionType *llvm_backend_t::llvmfunctype(func_stype_t *fst)
 {
-	std::string estr = codegen_expr(expr);
-	if (expr->type == node_t::IDENT_EXPR) {
-		ident_expr_t *e = (ident_expr_t*)expr;
-		if (e->sdecl->type == SDECL_FUNC)
-			return estr;
-	}
+	const Type *rettype = llvmrettype(fst);
+	std::vector<const Type*> args;
+	args.reserve(fst->args.size());
+	for (size_t i = 0, n = fst->args.size(); i < n; ++i)
+		args.push_back(llvmtype(fst->args[i]));
 
-	std::string out;
-	cppsprintf(&out, "((%s)%s)",
-		   real_func_ctype(fst).c_str(),
-		   estr.c_str());
-	return out;
+	return FunctionType::get(rettype, args, fst->varargs);
 }
 
-std::string pass3_t::codegen_expr(node_t *expr)
+// helpers for recursive types
+#define BIND_TMP_TYPE()							\
+	PATypeHolder tmp = OpaqueType::get(LLGC);			\
+	st->llvmtype = tmp.get()
+
+#define REFINE_TMP_TYPE(_var)						\
+	cast<OpaqueType>(tmp.get())->refineAbstractTypeTo(_var);	\
+	st->llvmtype = cast<Type>(tmp.get())
+
+const Type *llvm_backend_t::llvmtype(stype_t *st)
 {
-	if (expr->vst.value.type != VALUE_NONE)
-		return codegen_value(&expr->vst);
+	CRAWL_QASSERT((st->type & STYPE_ABSTRACT) == 0);
 
-	std::string out;
-	switch (expr->type) {
-	case node_t::BINARY_EXPR:
-	{
-		binary_expr_t *e = (binary_expr_t*)expr;
-		if (e->vst.stype->type & STYPE_POINTER) {
-			out = codegen_pointer_binary_expr(e);
-			break;
+	if (st->llvmtype)
+		return st->llvmtype;
+
+	if (st->type & STYPE_VOID) {
+		st->llvmtype = Type::getInt8Ty(LLGC);
+	} else if (st->type & STYPE_BOOL) {
+		st->llvmtype = Type::getInt8Ty(LLGC);
+	} else if (st->type & STYPE_INT) {
+		switch (st->bits()) {
+		case 8:  st->llvmtype = Type::getInt8Ty(LLGC); break;
+		case 16: st->llvmtype = Type::getInt16Ty(LLGC); break;
+		case 32: st->llvmtype = Type::getInt32Ty(LLGC); break;
+		case 64: st->llvmtype = Type::getInt64Ty(LLGC); break;
 		}
-		out += "(";
-		out += codegen_expr(e->lhs);
-		out += " ";
-		out += token_to_sym(e->tok);
-		out += " ";
-		out += codegen_expr(e->rhs);
-		out += ")";
-		break;
-	}
-	case node_t::UNARY_EXPR:
-	{
-		unary_expr_t *e = (unary_expr_t*)expr;
-		if (e->tok == TOK_AND || e->tok == TOK_TIMES) {
-			out = codegen_pointer_unary_expr(e);
-			break;
+	} else if (st->type & STYPE_FLOAT) {
+		switch (st->bits()) {
+		case 32: st->llvmtype = Type::getFloatTy(LLGC); break;
+		case 64: st->llvmtype = Type::getDoubleTy(LLGC); break;
 		}
-		out += token_to_sym(e->tok);
-		out += codegen_expr(e->expr);
-		break;
-	}
-	case node_t::IDENT_EXPR:
-	{
-		ident_expr_t *e = (ident_expr_t*)expr;
-		if (e->sdecl && e->sdecl->type == SDECL_VAR) {
-			var_sdecl_t *vsd = (var_sdecl_t*)e->sdecl;
-			if (vsd->namedret != -1) {
-				cppsprintf(&out, "__multiple_return_values._%d",
-					   vsd->namedret);
-				break;
-			}
-		}
-		if (!uid.empty() && e->sdecl &&
-		    e->sdecl->scope->parent == pkgscope)
-		{
-			cppsprintf(&out, "_Crl_%s_%s", uid.c_str(), e->val.c_str());
-			break;
-		}
-		out += e->val;
-		break;
-	}
-	case node_t::TYPE_CAST_EXPR:
-	{
-		type_cast_expr_t *e = (type_cast_expr_t*)expr;
-		out += "(";
-		out += ctype(e->vst.stype);
-		out += ")";
-		out += codegen_expr(e->expr);
-		break;
-	}
-	case node_t::PAREN_EXPR:
-	{
-		paren_expr_t *e = (paren_expr_t*)expr;
-		out += "(";
-		out += codegen_expr(e->expr);
-		out += ")";
-		break;
-	}
-	case node_t::CALL_EXPR:
-	{
-		call_expr_t *e = (call_expr_t*)expr;
-		CRAWL_QASSERT(e->expr->vst.stype->end_type()->type & STYPE_FUNC);
-		func_stype_t *fst = (func_stype_t*)e->expr->vst.stype->end_type();
-		if (!e->tmp.empty())
-			out = e->tmp;
-		else {
-			out += codegen_expr_for_call(e->expr, fst);
-			out += "(";
-			for (size_t i = 0, n = e->args.size(); i < n; ++i) {
-				out += codegen_expr(e->args[i]);
-				if (i != n - 1)
-					out += ", ";
-			}
-			out += ")";
-		}
-		break;
-	}
-	case node_t::INDEX_EXPR:
-	{
-		index_expr_t *e = (index_expr_t*)expr;
-		stype_t *t = e->expr->vst.stype;
-		if (t->type & STYPE_ARRAY) {
-			out += codegen_expr(e->expr);
-			out += "._[";
-			out += codegen_expr(e->index);
-			out += "]";
-		} else {
-			CRAWL_QASSERT(t->type & STYPE_POINTER);
-			pointer_stype_t *pst = (pointer_stype_t*)t->end_type();
-			cppsprintf(&out, "*(%s*)(%s + %d*%s)",
-				   ctype(pst->points_to).c_str(),
-				   codegen_expr(e->expr).c_str(),
-				   pst->points_to->bits() / 8,
-				   codegen_expr(e->index).c_str());
-		}
-		break;
-	}
-	case node_t::COMPOUND_LIT:
-	{
-		compound_lit_t *e = (compound_lit_t*)expr;
-		if (!e->tmp.empty())
-			out = e->tmp;
-		else {
-			out += "{";
-			for (size_t i = 0, n = e->elts.size(); i < n; ++i) {
-				out += codegen_expr(e->elts[i]);
-				if (i != n-1)
-					out += ", ";
-			}
-			out += "}";
-		}
-		break;
-	}
-	case node_t::SELECTOR_EXPR:
-	{
-		selector_expr_t *e = (selector_expr_t*)expr;
-		if (IS_STYPE_MODULE(e->expr->vst.stype)) {
-			ident_expr_t *ident = is_ident_expr(e->expr);
-			CRAWL_QASSERT(ident != 0);
-			CRAWL_QASSERT(ident->sdecl->type == SDECL_IMPORT);
-			import_sdecl_t *id = (import_sdecl_t*)ident->sdecl;
-			if (!id->prefix.empty()) {
-				out += "_Crl_";
-				out += id->prefix;
-				out += "_";
-			}
-			out += codegen_expr(e->sel);
-			break;
-		}
-		if (IS_STYPE_POINTER(e->expr->vst.stype)) {
-			pointer_stype_t *pst = (pointer_stype_t*)e->expr->vst.stype->end_type();
-			cppsprintf(&out, "((%s*)%s)->",
-				   ctype(pst->points_to).c_str(),
-				   codegen_expr(e->expr).c_str());
-		} else {
-			out += codegen_expr(e->expr);
-			out += ".";
-		}
-		out += codegen_expr(e->sel);
-		break;
-	}
-	case node_t::BASIC_LIT_EXPR:
-		break;
-	default:
-		CRAWL_QASSERT(!"fuck");
-	}
-	return out;
-}
+	} else if (st->type & STYPE_POINTER) {
+		pointer_stype_t *pst = (pointer_stype_t*)st->end_type();
 
-std::string pass3_t::codegen_func_def(func_sdecl_t *fsd)
-{
-	std::string out;
-	func_stype_t *fst = (func_stype_t*)fsd->stype;
-	func_type_t *ft = fsd->decl->ftype;
+		BIND_TMP_TYPE();
 
-	std::string result = "void";
-	if (fst->results.size() > 1) {
-		result = tuple_to_struct(&fst->results);
-	} else if (fst->results.size() == 1) {
-		result = ctype(fst->results[0]);
+		const Type *points_to = llvmtype(pst->points_to);
+		PointerType *ptrty = PointerType::getUnqual(points_to);
+
+		REFINE_TMP_TYPE(ptrty);
+	} else if (st->type & STYPE_FUNC) {
+		func_stype_t *fst = (func_stype_t*)st->end_type();
+
+		BIND_TMP_TYPE();
+
+		const Type *functy = PointerType::getUnqual(llvmfunctype(fst));
+
+		REFINE_TMP_TYPE(functy);
+	} else if (st->type & STYPE_STRUCT) {
+		struct_stype_t *sst = (struct_stype_t*)st->end_type();
+
+		BIND_TMP_TYPE();
+
+		std::vector<const Type*> fields;
+		fields.reserve(sst->fields.size());
+		for (size_t i = 0, n = sst->fields.size(); i < n; ++i)
+			fields.push_back(llvmtype(sst->fields[i].type));
+
+		StructType *structty = StructType::get(LLGC, fields);
+
+		REFINE_TMP_TYPE(structty);
+	} else if (st->type & STYPE_ARRAY) {
+		array_stype_t *ast = (array_stype_t*)st->end_type();
+
+		BIND_TMP_TYPE();
+
+		const Type *elem = llvmtype(ast->elem);
+		ArrayType *arrty = ArrayType::get(elem, ast->size);
+
+		REFINE_TMP_TYPE(arrty);
 	}
 
-	const char *fname = fsd->name.c_str();
-	if (!strcmp(fname, "main"))
-		fname = "__crawl_main";
-
-	if (uid.empty())
-		cppsprintf(&out, "%s %s(", result.c_str(), fname);
-	else
-		cppsprintf(&out, "%s _Crl_%s_%s(",
-			   result.c_str(), uid.c_str(), fname);
-
-	size_t num = 0;
-	for (size_t i = 0, n = ft->args.size(); i < n; ++i) {
-		field_t *f = ft->args[i];
-		if (f->names.empty()) {
-			stype_t *t = fst->args[num];
-			cppsprintf(&out, "%s",
-				   ctype(t).c_str());
-			if (num != fst->args.size() - 1)
-				cppsprintf(&out, ", ");
-			num++;
-			continue;
-		}
-		for (size_t j = 0, m = f->names.size(); j < m; ++j, ++num) {
-			stype_t *t = fst->args[num];
-			const char *name = f->names[j]->val.c_str();
-
-			cppsprintf(&out, "%s %s",
-				   ctype(t).c_str(),
-				   name);
-
-			if (num != fst->args.size() - 1)
-				cppsprintf(&out, ", ");
-		}
-	}
-	if (ft->varargs) {
-		if (!ft->args.empty())
-			out += ", ";
-		out += "...";
-	}
-	cppsprintf(&out, ")");
-	return out;
-}
-
-std::string pass3_t::codegen_extern_func_def(func_sdecl_t *fsd, const char *uid)
-{
-	std::string out;
-	func_stype_t *fst = (func_stype_t*)fsd->stype;
-
-	std::string result = "void";
-	if (fst->results.size() > 1) {
-		result = tuple_to_struct(&fst->results);
-	} else if (fst->results.size() == 1) {
-		result = ctype(fst->results[0]);
-	}
-
-	const char *fname = fsd->name.c_str();
-	if (!strcmp(fname, "main"))
-		fname = "__crawl_main";
-
-	if (strlen(uid) == 0)
-		cppsprintf(&out, "%s %s(", result.c_str(), fname);
-	else
-		cppsprintf(&out, "%s _Crl_%s_%s(", result.c_str(), uid, fname);
-
-	for (size_t i = 0, n = fst->args.size(); i < n; ++i) {
-		stype_t *t = fst->args[i];
-		cppsprintf(&out, "%s",
-			   ctype(t).c_str());
-		if (i != fst->args.size() - 1)
-			cppsprintf(&out, ", ");
-	}
-	if (fst->varargs) {
-		if (!fst->args.empty())
-			out += ", ";
-		out += "...";
-	}
-	cppsprintf(&out, ")");
-	return out;
-}
-
-std::string pass3_t::codegen_extern_sdecls()
-{
-	std::string out;
-	for (size_t i = 0, n = used_extern_sdecls->size(); i < n; ++i) {
-		import_sdecl_t *id = used_extern_sdecls->at(i);
-		unordered_map<std::string, sdecl_t*>::iterator it, end;
-		for (it = id->decls.begin(), end = id->decls.end(); it != end; ++it) {
-			sdecl_t *d = it->second;
-			if (d->type != SDECL_FUNC)
-				continue;
-			if (!d->inited)
-				continue;
-
-			func_sdecl_t *fsd = (func_sdecl_t*)d;
-
-			cppsprintf(&out, "%s;\n",
-				   codegen_extern_func_def(fsd, id->prefix.c_str()).c_str());
-		}
-	}
-	out.append(1, '\n');
-	return out;
-}
-
-std::string pass3_t::codegen_top_sdecl(sdecl_t *d)
-{
-	std::string out;
-	scope_block_t *save_cur_scope = cur_scope;
-	cur_scope = d->scope;
-
-	switch (d->type) {
-	case SDECL_VAR:
-	{
-		var_sdecl_t *vsd = (var_sdecl_t*)d;
-		if (!vsd->init) {
-			cppsprintf(&out, "%s %s = %s;\n",
-				   ctype(vsd->stype).c_str(),
-				   vsd->name.c_str(),
-				   nil_value_for_type(vsd->stype));
-			vsd->inited = true;
-		} else if (vsd->init->vst.value.type != VALUE_NONE) {
-			// we have a value, we can generate the code!
-			std::string init = codegen_value(&vsd->init->vst);
-			cppsprintf(&out, "%s %s = %s;\n",
-				   ctype(vsd->stype).c_str(),
-				   vsd->name.c_str(),
-				   init.c_str());
-			vsd->inited = true;
-		} else {
-			// otherwise just place an init-less declaration
-			// and add the sdecl to 'inits'
-			cppsprintf(&out, "%s %s;\n",
-				   ctype(vsd->stype).c_str(),
-				   vsd->name.c_str());
-			inits.push_back(vsd);
-		}
-		break;
-	}
-	case SDECL_FUNC:
-	{
-		func_sdecl_t *fsd = (func_sdecl_t*)d;
-		cppsprintf(&out, "%s;\n",
-			   codegen_func_def(fsd).c_str());
-		if (fsd->decl->body)
-			funcs.push_back(fsd);
-		break;
-	}
-	default:
-		break;
-	}
-
-	cur_scope = save_cur_scope;
-	return out;
-}
-
-std::string pass3_t::codegen_top_sdecls(std::vector<const char*> *pkgdecls)
-{
-	std::string out;
-	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
-		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
-		out += codegen_top_sdecl(sd);
-	}
-	out.append(1, '\n');
-	return out;
-}
-
-std::string pass3_t::pass(std::vector<const char*> *pkgdecls)
-{
-	tmp_n = 0;
-	cur_scope = 0;
-	cur_func_decl = 0;
-	cur_for_stmt = 0;
-	inits.clear();
-	funcs.clear();
-	tmp_structs.clear();
-	tmp_struct_defs.clear();
-	indent = 0;
-
-	// codegen stuff
-	std::string c_externdecls = codegen_extern_sdecls();
-	std::string c_topsdecls = codegen_top_sdecls(pkgdecls);
-	std::string c_funcs = codegen_funcs();
-	std::string c_inits = codegen_inits();
-
-	// compose out
-	std::string out;
-	out += "#include <stdint.h>\n";
-	out += "#include <stdbool.h>\n";
-	out += "\n";
-
-	// temporary stucts
-	out += tmp_struct_defs;
-
-	// predeclarations
-	out += c_externdecls;
-	out += c_topsdecls;
-
-	// function definitions
-	out += c_funcs;
-
-	// global inits
-	if (!inits.empty()) {
-		if (uid.empty())
-			cppsprintf(&out, "static void __init_crawl_globals()\n{\n");
-		else
-			cppsprintf(&out, "void _Crl_%s___init_globals()\n{\n",
-				   uid.c_str());
-		cppsprintf(&out, "%s", c_inits.c_str());
-		cppsprintf(&out, "}\n\n");
-	}
-
-	// main
-	if (uid.empty()) {
-		cppsprintf(&out, "int main(int argc, char **argv)\n"
-			   "{\n");
-		if (!inits.empty())
-			cppsprintf(&out, "\t__init_crawl_globals();\n");
-		cppsprintf(&out, "\treturn __crawl_main(argc, (uint8_t*)argv);\n"
-			   "}\n");
-	}
-
-	return out;
+	CRAWL_QASSERT(st->llvmtype != 0);
+	return st->llvmtype;
 }
 
 struct init_deps_codegen_t : ast_visitor_t {
-	pass3_t *pass;
-	std::string *out;
+	llvm_backend_t *backend;
 
 	ast_visitor_t *visit(node_t *n)
 	{
@@ -735,7 +291,7 @@ struct init_deps_codegen_t : ast_visitor_t {
 			func_sdecl_t *fsd = (func_sdecl_t*)d;
 			unordered_set<var_sdecl_t*>::iterator it, end;
 			for (it = fsd->deps.begin(), end = fsd->deps.end(); it != end; ++it)
-				pass->codegen_init(out, *it);
+				backend->codegen_init(*it);
 			return this;
 		}
 
@@ -744,280 +300,351 @@ struct init_deps_codegen_t : ast_visitor_t {
 
 		// Global variables are declared in a file scope, the parent
 		// of each file scope is the package scope.
-		if (d->scope->parent == 0 || d->scope->parent != pass->pkgscope)
+		if (d->scope->parent == 0 || d->scope->parent != backend->pkgscope)
 			return this;
 
-		pass->codegen_init(out, (var_sdecl_t*)d);
+		backend->codegen_init((var_sdecl_t*)d);
 		return this;
 	}
 };
 
-void pass3_t::codegen_init_deps(std::string *out, node_t *e)
+void llvm_backend_t::codegen_init_deps(node_t *e)
 {
 	init_deps_codegen_t gen;
-	gen.pass = this;
-	gen.out = out;
+	gen.backend = this;
 	gen.traverse(e);
 }
 
-void pass3_t::codegen_init(std::string *out, var_sdecl_t *d)
+void llvm_backend_t::codegen_MRV(std::vector<Value*> *values,
+				 std::vector<stype_t*> *vtypes, node_t *expr)
 {
-	if (d->inited)
-		return;
+	call_expr_t *callexpr = is_call_expr(expr);
+	CRAWL_QASSERT(callexpr != 0);
+	CRAWL_QASSERT(IS_STYPE_FUNC(callexpr->expr->vst.stype));
+	func_stype_t *fst = (func_stype_t*)callexpr->expr->vst.stype;
 
-	codegen_init_deps(out, d->init);
-
-	std::vector<std::string> side_effects;
-	extract_side_effects(&side_effects, d->init);
-
-	for (size_t i = 0, n = side_effects.size(); i < n; ++i)
-		cppsprintf(out, "\t%s\n", side_effects[i].c_str());
-
-	std::string init = codegen_expr(d->init);
-	cppsprintf(out, "\t%s = %s;\n", d->name.c_str(), init.c_str());
-	d->inited = true;
-}
-
-std::string pass3_t::codegen_inits()
-{
-	std::string out;
-	for (size_t i = 0, n = inits.size(); i < n; ++i)
-		codegen_init(&out, inits[i]);
-	return out;
-}
-
-std::string pass3_t::codegen_tmp_expr(std::string *out, node_t *expr)
-{
-	std::vector<std::string> side_effects;
-	extract_side_effects(&side_effects, expr);
-	codegen_side_effects(out, &side_effects);
-
-	std::string name = gen_tmpname();
-	stype_t *type = expr->vst.stype;
-
-	append_indent(out);
-	cppsprintf(out, "%s %s = %s;\n",
-		   ctype(type).c_str(),
-		   name.c_str(),
-		   codegen_expr(expr).c_str());
-	return name;
-}
-
-void pass3_t::codegen_side_effects(std::string *out, std::vector<std::string> *se)
-{
-	for (size_t i = 0, n = se->size(); i < n; ++i) {
-		append_indent(out);
-		out->append(se->at(i));
-		out->append(1, '\n');
+	Value *mrv = codegen_expr_value(callexpr);
+	values->reserve(fst->results.size());
+	vtypes->reserve(fst->results.size());
+	for (size_t i = 0, n = fst->results.size(); i < n; ++i) {
+		values->push_back(ir->CreateExtractValue(mrv, i));
+		vtypes->push_back(fst->results[i]);
 	}
 }
 
-void pass3_t::codegen_func(std::string *out, func_sdecl_t *f)
+void llvm_backend_t::codegen_switch_stmt_case(switch_stmt_case_t *stmt)
 {
-	func_sdecl_t *save_func_decl = cur_func_decl;
-	cur_func_decl = f;
+	Function *curf = cast<Function>(cur_func_decl->addr);
+	BasicBlock *C = 0;
+	if (stmt->exprs.empty())
+		C = cur_switch->getDefaultDest();
+	else
+		C = BasicBlock::Create(LLGC, "", curf);
 
-	func_stype_t *fst = (func_stype_t*)f->stype;
-
-	cppsprintf(out, "%s\n",
-		   codegen_func_def(f).c_str());
-
-	indentpp(out);
-	if (fst->results.size() > 1) {
-		const char *tuple = tuple_to_struct(&fst->results);
-		append_indent(out);
-		cppsprintf(out, "%s __multiple_return_values", tuple);
-		if (f->decl->ftype->named_results()) {
-			// named results are default initialized to zero
-			out->append(" = {");
-			for (size_t i = 0, n = fst->results.size(); i < n; ++i) {
-				out->append(nil_value_for_type(fst->results[i]));
-				if (i != n-1)
-					out->append(", ");
-			}
-			out->append("}");
-		}
-		out->append(";\n");
+	if (ended_with_fallthrough) {
+		// if previous block was ended with 'fallthrough' statement,
+		// jump to the current one
+		ended_with_fallthrough = false;
+		ir->CreateBr(C);
 	}
 
-	codegen_block_stmt(out, f->decl->body);
-	indentmm(out);
+	std::vector<Value*> values;
+	values.reserve(stmt->exprs.size());
+	for (size_t i = 0, n = stmt->exprs.size(); i < n; ++i)
+		values.push_back(codegen_expr_value(stmt->exprs[i]));
 
-	cur_func_decl = save_func_decl;
-}
+	for (size_t i = 0, n = values.size(); i < n; ++i)
+		cur_switch->addCase(cast<ConstantInt>(values[i]), C);
 
-void pass3_t::codegen_block_stmt(std::string *out, block_stmt_t *stmt)
-{
+	ir->SetInsertPoint(C);
 	for (size_t i = 0, n = stmt->stmts.size(); i < n; ++i)
-		codegen_stmt(out, stmt->stmts[i]);
+		codegen_stmt(stmt->stmts[i]);
+
+	if (!stmt->stmts.empty()) {
+		node_t *last = stmt->stmts.back();
+		if (last->type == node_t::FLOW_STMT &&
+		    ((flow_stmt_t*)last)->tok == TOK_FALLTHROUGH)
+		{
+			ended_with_fallthrough = true;
+			return;
+		}
+	}
+
+	if (!isa<TerminatorInst>(ir->GetInsertBlock()->back()))
+		ir->CreateBr(cur_switch_end);
 }
 
-void pass3_t::codegen_full_block_stmt(std::string *out, block_stmt_t *stmt)
+void llvm_backend_t::codegen_switch_stmt(switch_stmt_t *stmt)
 {
-	indentpp(out);
-	codegen_block_stmt(out, stmt);
-	indentmm(out);
+	Function *curf = cast<Function>(cur_func_decl->addr);
+	BasicBlock *def = BasicBlock::Create(LLGC, "", curf);
+
+	// get switch operand value
+	Value *v = codegen_expr_value(stmt->expr);
+
+	cur_loop_t *save_cur_loop = cur_loop;
+	SwitchInst *save_cur_switch = cur_switch;
+	BasicBlock *save_cur_switch_end = cur_switch_end;
+
+	cur_switch = ir->CreateSwitch(v, def, stmt->num_cases());
+	cur_switch_end = BasicBlock::Create(LLGC, "", curf);
+
+	// hack for break statement
+	cur_loop_t loop = { cur_switch_end, 0 };
+	cur_loop = &loop;
+
+	codegen_block_stmt(stmt->body);
+
+	if (def->empty()) {
+		ir->SetInsertPoint(def);
+		ir->CreateBr(cur_switch_end);
+	}
+	ir->SetInsertPoint(cur_switch_end);
+
+	cur_loop = save_cur_loop;
+	cur_switch = save_cur_switch;
+	cur_switch_end = save_cur_switch_end;
+	ended_with_fallthrough = false;
+
 }
 
-void pass3_t::codegen_compound_assign_stmt(std::string *out, assign_stmt_t *stmt)
+void llvm_backend_t::codegen_flow_stmt(flow_stmt_t *stmt)
 {
-	std::vector<std::string> side_effects;
-	extract_side_effects(&side_effects, stmt->lhs[0]);
-	extract_side_effects(&side_effects, stmt->rhs[0]);
-	codegen_side_effects(out, &side_effects);
-
-	append_indent(out);
-	out->append(codegen_expr(stmt->lhs[0]));
-	out->append(" ");
-	out->append(token_to_sym(stmt->tok));
-	out->append(" ");
-	out->append(codegen_expr(stmt->rhs[0]));
-	out->append(";\n");
+	switch (stmt->tok) {
+	case TOK_BREAK:
+		ir->CreateBr(cur_loop->break_);
+		break;
+	case TOK_CONTINUE:
+		ir->CreateBr(cur_loop->continue_);
+		break;
+	case TOK_FALLTHROUGH:
+		break; // handled elsewhere
+	default:
+		CRAWL_QASSERT(!"bad token");
+	}
 }
 
-void pass3_t::codegen_assign_stmt(std::string *out, assign_stmt_t *stmt)
+void llvm_backend_t::codegen_for_stmt(for_stmt_t *stmt)
+{
+	Function *curf = cast<Function>(cur_func_decl->addr);
+
+	// prepare blocks
+	BasicBlock *LC = 0;
+	if (stmt->cond)
+		LC = BasicBlock::Create(LLGC, "", curf);
+	BasicBlock *L = BasicBlock::Create(LLGC, "", curf);
+	BasicBlock *P = 0;
+	if (stmt->post)
+		P = BasicBlock::Create(LLGC, "", curf);
+	BasicBlock *E = BasicBlock::Create(LLGC, "", curf);
+
+	// setup loop info for flow instructions generator
+	cur_loop_t loop = {
+		// for explanation see loop branch
+		P ? P : (LC ? LC : L),
+		E
+	};
+	cur_loop_t *save_cur_loop = cur_loop;
+	cur_loop = &loop;
+
+	// generate init statement in-place
+	if (stmt->init)
+		codegen_stmt(stmt->init);
+	// jump to the loop body directly if there is no condition, otherwise
+	// jump to the loop condition branch
+	ir->CreateBr(LC ? LC : L);
+
+	// LOOP CONDITION branch
+	if (stmt->cond) {
+		ir->SetInsertPoint(LC);
+		ir->CreateCondBr(codegen_expr_value(stmt->cond),
+				 L, E);
+	}
+
+	// LOOP branch
+	ir->SetInsertPoint(L);
+	codegen_block_stmt(stmt->body);
+
+	// if there is a post increment branch, jump into it
+	// otherwise:
+	//     if there is a loop condition branch, jump into it
+	//     otherwise:
+	//         jump to the loop body
+	if (ir->GetInsertBlock()->empty() ||
+	    !is_bb_terminated(ir->GetInsertBlock()))
+	{
+		ir->CreateBr(P ? P : (LC ? LC : L));
+	}
+
+	// POST INCREMENT branch
+	if (stmt->post) {
+		ir->SetInsertPoint(P);
+		codegen_stmt(stmt->post);
+		ir->CreateBr(LC ? LC : L);
+	}
+
+	// END branch
+	ir->SetInsertPoint(E);
+	cur_loop = save_cur_loop;
+}
+
+void llvm_backend_t::codegen_ifelse_stmt(ifelse_stmt_t *stmt)
+{
+	Function *curf = cast<Function>(cur_func_decl->addr);
+
+	// prepare blocks
+	BasicBlock *T = BasicBlock::Create(LLGC, "", curf);
+	BasicBlock *F = BasicBlock::Create(LLGC, "", curf);
+	BasicBlock *E = F;
+	if (stmt->elsestmt)
+		E = BasicBlock::Create(LLGC, "", curf);
+
+	// should be i1 anyway, no icmp or anything
+	Value *cond = codegen_expr_value(stmt->cond);
+	ir->CreateCondBr(cond, T, F);
+
+	// TRUE branch
+	ir->SetInsertPoint(T);
+	codegen_block_stmt(stmt->body);
+	insert_opt_endjmp(ir, E);
+
+	// ELSE branch
+	if (stmt->elsestmt) {
+		ir->SetInsertPoint(F);
+		codegen_stmt(stmt->elsestmt);
+		insert_opt_endjmp(ir, E);
+	}
+
+	// END branch
+	ir->SetInsertPoint(E);
+}
+
+void llvm_backend_t::codegen_incdec_stmt(incdec_stmt_t *stmt)
+{
+	stype_t *t = stmt->expr->vst.stype;
+	Value *addr = codegen_expr_addr(stmt->expr);
+	Value *l = ir->CreateLoad(addr);
+	Value *r = ConstantInt::get(IntegerType::get(LLGC, t->bits()), 1);
+	int tok = (stmt->tok == TOK_INC ? TOK_PLUS : TOK_MINUS);
+	// playing with fire here, but...
+	//
+	// if 'stmt->expr' is a pointer, RHS is an integer size, but since
+	// codegen_binary_expr_raw doesn't really care about that, we're ok here
+	Value *result = codegen_binary_expr_raw(l, r, t, t, t, tok);
+	codegen_store(result, addr, t);
+}
+
+void llvm_backend_t::codegen_compound_assign_stmt(assign_stmt_t *stmt)
+{
+	Value *addr = codegen_expr_addr(stmt->lhs[0]);
+	Value *l = ir->CreateLoad(addr);
+	Value *r = codegen_expr_value(stmt->rhs[0]);
+	stype_t *lt = stmt->lhs[0]->vst.stype;
+	stype_t *rt = stmt->rhs[0]->vst.stype;
+	int tok = compound_assignment_to_binary_tok(stmt->tok);
+	Value *result = codegen_binary_expr_raw(l, r, lt, lt, rt, tok);
+	codegen_store(result, addr, lt);
+}
+
+void llvm_backend_t::codegen_assign_stmt(assign_stmt_t *stmt)
 {
 	if (stmt->tok != TOK_ASSIGN && stmt->tok != TOK_DECLARIZE) {
 		// += -= *= /=, etc.
-		codegen_compound_assign_stmt(out, stmt);
+		codegen_compound_assign_stmt(stmt);
 		return;
 	}
 
-	std::vector<std::string> side_effects;
+	// codegen addresses before, because we need to eval side effect
+	// expressions
+	std::vector<Value*> addrs;
+	std::vector<Value*> values;
+	std::vector<stype_t*> vtypes;
+
 	for (size_t i = 0, n = stmt->lhs.size(); i < n; ++i)
-		extract_side_effects(&side_effects, stmt->lhs[i]);
+		addrs.push_back(codegen_expr_addr(stmt->lhs[i]));
 
-	// generate side effects for the RHS, only if it's a single assignment
-	// otherwise side effects will be generated in temporaries
-	if (stmt->lhs.size() == 1) {
-		for (size_t i = 0, n = stmt->rhs.size(); i < n; ++i)
-			extract_side_effects(&side_effects, stmt->rhs[i]);
-	}
-	codegen_side_effects(out, &side_effects);
-
-	if (stmt->lhs.size() == 1) {
-		// single assignment
-		append_indent(out);
-		if (stmt->tok == TOK_DECLARIZE &&
-		    (stmt->lhs[0]->type == node_t::IDENT_EXPR))
-		{
-			ident_expr_t *name = (ident_expr_t*)stmt->lhs[0];
-			cppsprintf(out, "%s %s = %s;\n",
-				   ctype(name->sdecl->stype).c_str(),
-				   name->val.c_str(),
-				   codegen_expr(stmt->rhs[0]).c_str());
-		} else {
-			cppsprintf(out, "%s = %s;\n",
-				   codegen_expr(stmt->lhs[0]).c_str(),
-				   codegen_expr(stmt->rhs[0]).c_str());
+	// special case, MRV
+	if (stmt->lhs.size() > 1 && stmt->rhs.size() == 1)
+		codegen_MRV(&values, &vtypes, stmt->rhs[0]);
+	else {
+		for (size_t i = 0, n = stmt->rhs.size(); i < n; ++i) {
+			values.push_back(codegen_cexpr_value(stmt->rhs[i]));
+			vtypes.push_back(stmt->rhs[i]->vst.stype);
 		}
-		return;
-	}
-
-	// multiple assignment, use temporaries
-	// at this point LHS > 1
-
-	std::vector<std::string> tmps;
-	if (stmt->rhs.size() == 1) {
-		// special call expr on the RHS case
-		call_expr_t *c = is_call_expr(stmt->rhs[0]);
-		CRAWL_QASSERT(c != 0);
-		CRAWL_QASSERT(c->expr->vst.stype->type & STYPE_FUNC);
-		func_stype_t *fst = (func_stype_t*)c->expr->vst.stype;
-
-		std::vector<std::string> side_effects;
-		extract_side_effects(&side_effects, c);
-		codegen_side_effects(out, &side_effects);
-
-		std::string tuple_tmp = gen_tmpname();
-		append_indent(out);
-		cppsprintf(out, "%s %s = %s;\n",
-			   tuple_to_struct(&fst->results),
-			   tuple_tmp.c_str(),
-			   codegen_expr(c).c_str());
-
-		for (size_t i = 0, n = fst->results.size(); i < n; ++i) {
-			std::string tmp;
-			cppsprintf(&tmp, "%s._%d", tuple_tmp.c_str(), i);
-			tmps.push_back(tmp);
-		}
-	} else {
-		for (size_t i = 0, n = stmt->rhs.size(); i < n; ++i)
-			tmps.push_back(codegen_tmp_expr(out, stmt->rhs[i]));
 	}
 
 	for (size_t i = 0, n = stmt->lhs.size(); i < n; ++i) {
-		append_indent(out);
+		Value *addr;
+		stype_t *to;
+
 		if (stmt->tok == TOK_DECLARIZE &&
 		    (stmt->lhs[i]->type == node_t::IDENT_EXPR))
 		{
+			// declaration, allocate store
 			ident_expr_t *name = (ident_expr_t*)stmt->lhs[i];
-			cppsprintf(out, "%s %s = %s;\n",
-				   ctype(name->sdecl->stype).c_str(),
-				   name->val.c_str(),
-				   tmps[i].c_str());
+			var_sdecl_t *vsd = (var_sdecl_t*)name->sdecl;
+			const Type *ty = llvmtype(vsd->stype);
+			vsd->addr = ir_alloca->CreateAlloca(ty);
+
+			addr = vsd->addr;
+			to = vsd->stype;
 		} else {
-			cppsprintf(out, "%s = %s;\n",
-				   codegen_expr(stmt->lhs[i]).c_str(),
-				   tmps[i].c_str());
+			addr = addrs[i];
+			to = stmt->lhs[i]->vst.stype;
+		}
+
+		if (!values[i]) {
+			codegen_cexpr_store(values[i], addr, stmt->rhs[i]);
+		} else {
+			Value *v = codegen_assignment(values[i], vtypes[i], to);
+			codegen_store(v, addr, vtypes[i]);
 		}
 	}
 }
 
-void pass3_t::codegen_expr_stmt(std::string *out, expr_stmt_t *stmt)
+void llvm_backend_t::codegen_var_spec(value_spec_t *spec)
 {
-	std::vector<std::string> side_effects;
-	extract_side_effects(&side_effects, stmt->expr);
-	codegen_side_effects(out, &side_effects);
+	std::vector<Value*> inits;
+	std::vector<stype_t*> inittypes;
 
-	append_indent(out);
-	cppsprintf(out, "%s;\n", codegen_expr(stmt->expr).c_str());
-}
-
-void pass3_t::codegen_var_spec(std::string *out, value_spec_t *spec)
-{
-	std::vector<std::string> tmps;
-
-	// hack for a case, where only one variable, don't generate temporaries
-	if (!spec->values.empty()) {
-		if (spec->names.size() == 1) {
-			std::vector<std::string> side_effects;
-			extract_side_effects(&side_effects, spec->values[0]);
-			codegen_side_effects(out, &side_effects);
-			tmps.push_back(codegen_expr(spec->values[0]));
-		} else {
-			// TODO: handle special case (multiple results from a call expr)
-			for (size_t i = 0, n = spec->values.size(); i < n; ++i)
-				tmps.push_back(codegen_tmp_expr(out, spec->values[i]));
+	if (spec->names.size() > 1 && spec->values.size() == 1)
+		codegen_MRV(&inits, &inittypes, spec->values[0]);
+	else {
+		for (size_t i = 0, n = spec->values.size(); i < n; ++i) {
+			inits.push_back(codegen_cexpr_value(spec->values[i]));
+			inittypes.push_back(spec->values[i]->vst.stype);
 		}
 	}
 
 	for (size_t i = 0, n = spec->names.size(); i < n; ++i) {
 		ident_expr_t *name = spec->names[i];
 		var_sdecl_t *vsd = (var_sdecl_t*)name->sdecl;
-		append_indent(out);
-		cppsprintf(out, "%s %s",
-			   ctype(vsd->stype).c_str(),
-			   vsd->name.c_str());
-
-		std::string init;
-		if (vsd->init)
-			init = tmps[i];
+		const Type *ty = llvmtype(vsd->stype);
+		vsd->addr = ir_alloca->CreateAlloca(ty);
+		if (vsd->init) {
+			if (!inits[i])
+				codegen_cexpr_store(inits[i], vsd->addr,
+						    spec->values[i]);
+			else {
+				Value *v = codegen_assignment(inits[i],
+							      inittypes[i],
+							      vsd->stype);
+				codegen_store(v, vsd->addr, inittypes[i]);
+			}
+		}
 		else
-			init = nil_value_for_type(vsd->stype);
-
-		cppsprintf(out, " = %s;\n", init.c_str());
+			ir->CreateStore(Constant::getNullValue(ty), vsd->addr);
 	}
 }
 
-void pass3_t::codegen_decl_stmt(std::string *out, decl_stmt_t *stmt)
+void llvm_backend_t::codegen_decl_stmt(decl_stmt_t *stmt)
 {
 	switch (stmt->decl->type) {
 	case node_t::VAR_DECL:
 	{
 		var_decl_t *d = (var_decl_t*)stmt->decl;
 		for (size_t i = 0, n = d->specs.size(); i < n; ++i)
-			codegen_var_spec(out, d->specs[i]);
+			codegen_var_spec(d->specs[i]);
 		break;
 	}
 	default:
@@ -1025,291 +652,110 @@ void pass3_t::codegen_decl_stmt(std::string *out, decl_stmt_t *stmt)
 	}
 }
 
-void pass3_t::codegen_return_stmt(std::string *out, return_stmt_t *stmt)
+void llvm_backend_t::codegen_return_stmt(return_stmt_t *stmt)
 {
+	func_stype_t *fst = (func_stype_t*)cur_func_decl->stype;
 	if (stmt->returns.size() == 0) {
-		CRAWL_QASSERT(cur_func_decl != 0);
-		append_indent(out);
-		if (cur_func_decl->decl->ftype->named_results())
-			out->append("return __multiple_return_values;\n");
-		else
-			out->append("return;\n");
+		// TODO: handle named MRV
+		ir->CreateRetVoid();
 	} else if (stmt->returns.size() == 1) {
-		// TODO: special case, call expr
-		std::vector<std::string> side_effects;
-		extract_side_effects(&side_effects, stmt->returns[0]);
-		codegen_side_effects(out, &side_effects);
-		append_indent(out);
-		cppsprintf(out, "return %s;\n",
-			   codegen_expr(stmt->returns[0]).c_str());
+		Value *v = codegen_expr_value(stmt->returns[0]);
+		v = codegen_assignment(v, stmt->returns[0]->vst.stype,
+				       fst->results[0]);
+		ir->CreateRet(v);
 	} else {
-		// TODO: it is possible to avoid temporaries here, if multiple
-		// results are not named
-		std::vector<std::string> tmps;
-		for (size_t i = 0, n = stmt->returns.size(); i < n; ++i)
-			tmps.push_back(codegen_tmp_expr(out, stmt->returns[i]));
-
+		std::vector<Value*> vals;
+		vals.reserve(stmt->returns.size());
 		for (size_t i = 0, n = stmt->returns.size(); i < n; ++i) {
-			append_indent(out);
-			cppsprintf(out, "__multiple_return_values._%d = %s;\n",
-				   i, tmps[i].c_str());
+			Value *v = codegen_expr_value(stmt->returns[i]);
+			v = codegen_assignment(v, stmt->returns[i]->vst.stype,
+					       fst->results[i]);
+			vals.push_back(v);
 		}
-		append_indent(out);
-		out->append("return __multiple_return_values;\n");
+		ir->CreateAggregateRet(&vals[0], vals.size());
 	}
 }
 
-void pass3_t::codegen_ifelse_stmt(std::string *out, ifelse_stmt_t *stmt)
+void llvm_backend_t::codegen_block_stmt(block_stmt_t *stmt)
 {
-	std::vector<std::string> cond_se; // side effects
-	extract_side_effects(&cond_se, stmt->cond);
-
-	if (!cond_se.empty()) {
-		indentpp(out);
-		codegen_side_effects(out, &cond_se);
-	}
-
-	// condition
-	append_indent(out);
-	cppsprintf(out, "if (%s)\n", codegen_expr(stmt->cond).c_str());
-
-	// body
-	codegen_full_block_stmt(out, stmt->body);
-
-	if (stmt->elsestmt) {
-		append_indent(out);
-		out->append("else\n");
-		codegen_stmt(out, stmt->elsestmt);
-	}
-
-	if (!cond_se.empty())
-		indentmm(out);
-}
-
-void pass3_t::codegen_incdec_stmt(std::string *out, incdec_stmt_t *stmt)
-{
-	const char *action = "+";
-	if (stmt->tok == TOK_DEC)
-		action = "-";
-
-	stype_t *t = stmt->expr->vst.stype->end_type();
-
-	std::vector<std::string> side_effects;
-	extract_side_effects(&side_effects, stmt->expr);
-	codegen_side_effects(out, &side_effects);
-
-	append_indent(out);
-	if (t->type & STYPE_INT) {
-		out->append(codegen_expr(stmt->expr));
-		out->append(token_to_sym(stmt->tok));
-		out->append(";\n");
-		return;
-	}
-
-	// must be a pointer
-	CRAWL_QASSERT(t->type & STYPE_POINTER);
-	std::string expr = codegen_expr(stmt->expr);
-	cppsprintf(out, "%s = %s+%d;\n",
-		   expr.c_str(), expr.c_str(),
-		   ((pointer_stype_t*)t)->points_to->bits() / 8);
-}
-
-void pass3_t::codegen_for_stmt(std::string *out, for_stmt_t *stmt)
-{
-	if (stmt->init) {
-		indentpp(out);
-		codegen_stmt(out, stmt->init);
-	}
-
-	append_indent(out);
-	if (!stmt->cond) {
-		out->append("while (1)\n");
-		indentpp(out);
-	} else {
-		std::vector<std::string> cond_se;
-		extract_side_effects(&cond_se, stmt->cond);
-
-		std::string cond = codegen_expr(stmt->cond);
-
-		if (cond_se.empty()) {
-			cppsprintf(out, "while (%s)\n", cond.c_str());
-			indentpp(out);
-		} else {
-			out->append("while (1)\n");
-			indentpp(out);
-
-			codegen_side_effects(out, &cond_se);
-			append_indent(out);
-			cppsprintf(out, "if (!%s) break;\n", cond.c_str());
-		}
-	}
-
-	stmt->postgoto = gen_tmpname() + "_continue";
-
-	for_stmt_t *save_for_stmt = cur_for_stmt;
-	cur_for_stmt = stmt;
-	codegen_block_stmt(out, stmt->body);
-	cur_for_stmt = save_for_stmt;
-
-	if (stmt->post) {
-		out->append(stmt->postgoto);
-
-		// I use ':;' here, because C only allows labeled statements.
-		// But sometimes I need to have labeled declarations (post
-		// increment with side effects). So, this is a simple hack to
-		// allow that.
-		out->append(":;\n");
-		codegen_stmt(out, stmt->post);
-	}
-
-	indentmm(out);
-
-	if (stmt->init)
-		indentmm(out);
-}
-
-void pass3_t::codegen_switch_stmt_case(std::string *out, switch_stmt_case_t *stmt)
-{
-	if (stmt->exprs.empty()) {
-		append_indent(out);
-		out->append("default:\n");
-	}
-	for (size_t i = 0, n = stmt->exprs.size(); i < n; ++i) {
-		node_t *e = stmt->exprs[i];
-		append_indent(out);
-		cppsprintf(out, "case %s:\n", codegen_expr(e).c_str());
-	}
-
-	indentpp(out);
 	for (size_t i = 0, n = stmt->stmts.size(); i < n; ++i) {
-		codegen_stmt(out, stmt->stmts[i]);
-	}
-	if (stmt->stmts.empty() ||
-	    stmt->stmts.back()->type != node_t::FLOW_STMT ||
-	    ((flow_stmt_t*)stmt->stmts.back())->tok != TOK_FALLTHROUGH)
-	{
-		append_indent(out);
-		out->append("break;\n");
-	}
-	indentmm(out);
-}
+		node_t *s = stmt->stmts[i];
+		codegen_stmt(s);
 
-void pass3_t::codegen_switch_stmt(std::string *out, switch_stmt_t *stmt)
-{
-	// TODO: implement unrestricted switch statements?
-	CRAWL_QASSERT(stmt->constant == true);
-
-	std::vector<std::string> expr_se;
-	extract_side_effects(&expr_se, stmt->expr);
-
-	if (!expr_se.empty()) {
-		indentpp(out);
-		codegen_side_effects(out, &expr_se);
-	}
-
-	// expr
-	append_indent(out);
-	cppsprintf(out, "switch (%s)\n", codegen_expr(stmt->expr).c_str());
-
-	// body
-	codegen_full_block_stmt(out, stmt->body);
-
-	if (!expr_se.empty())
-		indentmm(out);
-}
-
-void pass3_t::codegen_flow_stmt(std::string *out, flow_stmt_t *stmt)
-{
-	switch (stmt->tok) {
-	case TOK_BREAK:
-		append_indent(out);
-		out->append("break;\n");
-		break;
-	case TOK_CONTINUE:
-		append_indent(out);
-		if (cur_for_stmt && cur_for_stmt->post) {
-			out->append("goto ");
-			out->append(cur_for_stmt->postgoto);
-			out->append(";\n");
-		} else
-			out->append("continue;\n");
-		break;
-	case TOK_FALLTHROUGH:
-		// do nothing, the statement simply omits generating break at
-		// the end of a case clause
-		break;
-	default:
-		CRAWL_QASSERT(!"bad token");
+		// there is no point in generating something after terminator
+		// statement
+		if (s->is_terminator())
+			return;
 	}
 }
 
-void pass3_t::codegen_stmt(std::string *out, node_t *stmt)
+void llvm_backend_t::codegen_stmt(node_t *stmt)
 {
 	switch (stmt->type) {
 	case node_t::EXPR_STMT:
 	{
 		expr_stmt_t *s = (expr_stmt_t*)stmt;
-		codegen_expr_stmt(out, s);
+		codegen_expr_value(s->expr);
 		break;
 	}
 	case node_t::DECL_STMT:
 	{
 		decl_stmt_t *s = (decl_stmt_t*)stmt;
-		codegen_decl_stmt(out, s);
+		codegen_decl_stmt(s);
 		break;
 	}
 	case node_t::BLOCK_STMT:
 	{
 		block_stmt_t *s = (block_stmt_t*)stmt;
-		codegen_full_block_stmt(out, s);
+		codegen_block_stmt(s);
 		break;
 	}
 	case node_t::RETURN_STMT:
 	{
 		return_stmt_t *s = (return_stmt_t*)stmt;
-		codegen_return_stmt(out, s);
+		codegen_return_stmt(s);
 		break;
 	}
 	case node_t::ASSIGN_STMT:
 	{
 		assign_stmt_t *s = (assign_stmt_t*)stmt;
-		codegen_assign_stmt(out, s);
+		codegen_assign_stmt(s);
 		break;
 	}
 	case node_t::INCDEC_STMT:
 	{
 		incdec_stmt_t *s = (incdec_stmt_t*)stmt;
-		codegen_incdec_stmt(out, s);
+		codegen_incdec_stmt(s);
 		break;
 	}
 	case node_t::IFELSE_STMT:
 	{
 		ifelse_stmt_t *s = (ifelse_stmt_t*)stmt;
-		codegen_ifelse_stmt(out, s);
+		codegen_ifelse_stmt(s);
 		break;
 	}
 	case node_t::FOR_STMT:
 	{
 		for_stmt_t *s = (for_stmt_t*)stmt;
-		codegen_for_stmt(out, s);
+		codegen_for_stmt(s);
 		break;
 	}
 	case node_t::SWITCH_STMT_CASE:
 	{
 		switch_stmt_case_t *s = (switch_stmt_case_t*)stmt;
-		codegen_switch_stmt_case(out, s);
+		codegen_switch_stmt_case(s);
 		break;
 	}
 	case node_t::SWITCH_STMT:
 	{
 		switch_stmt_t *s = (switch_stmt_t*)stmt;
-		codegen_switch_stmt(out, s);
+		codegen_switch_stmt(s);
 		break;
 	}
 	case node_t::FLOW_STMT:
 	{
 		flow_stmt_t *s = (flow_stmt_t*)stmt;
-		codegen_flow_stmt(out, s);
+		codegen_flow_stmt(s);
 		break;
 	}
 	default:
@@ -1317,93 +763,817 @@ void pass3_t::codegen_stmt(std::string *out, node_t *stmt)
 	}
 }
 
-std::string pass3_t::codegen_funcs()
+Value *llvm_backend_t::codegen_assignment(Value *expr, stype_t *from, stype_t *to)
 {
-	std::string out;
-	for (size_t i = 0, n = funcs.size(); i < n; ++i) {
-		codegen_func(&out, funcs[i]);
-		out.append(1, '\n');
+	if (IS_STYPE_POINTER(from) && IS_STYPE_POINTER(to)) {
+		if (!are_the_same(from->end_type(), to->end_type()))
+			return ir->CreatePointerCast(expr, llvmtype(to));
 	}
-	return out;
-}
-void pass3_t::indentpp(std::string *out)
-{
-	append_indent(out);
-	out->append("{\n");
-	indent++;
-}
-void pass3_t::indentmm(std::string *out)
-{
-	indent--;
-	append_indent(out);
-	out->append("}\n");
+	if (IS_STYPE_BOOL(to))
+		return ir->CreateZExt(expr, Type::getInt8Ty(LLGC));
+	return expr;
 }
 
-std::string pass3_t::real_func_ctype(func_stype_t *fst)
+Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
+					       stype_t *lt, stype_t *rt, int tok)
 {
-	std::string out;
-	if (fst->results.empty())
-		out += "void";
-	else if (fst->results.size() == 1)
-		out += ctype(fst->results[0]);
-	else
-		out += tuple_to_struct(&fst->results);
+	if (IS_STYPE_INT(et)) {
+		int_stype_t *ist = (int_stype_t*)et->end_type();
 
-	out += " (*)(";
-	for (size_t i = 0, n = fst->args.size(); i < n; ++i) {
-		out += ctype(fst->args[i]);
-		if (i != n-1)
-			out += ", ";
-	}
-	if (fst->varargs) {
-		if (!fst->args.empty())
-			out += ", ";
-		out += "...";
-	}
-	out += ")";
-	return out;
-}
-
-std::string pass3_t::ctype(stype_t *st)
-{
-	// good place to make sure that there are no abstract types in pass3
-	CRAWL_QASSERT((st->type & STYPE_ABSTRACT) == 0);
-
-	if (st->type & STYPE_VOID) {
-		return "void";
-	} else if (st->type & STYPE_BOOL) {
-		return "bool";
-	} else if (st->type & STYPE_INT) {
-		int_stype_t *ist = (int_stype_t*)st->end_type();
-		if (ist->unsignd) {
-			switch (ist->size) {
-			case 8:  return "uint8_t";
-			case 16: return "uint16_t";
-			case 32: return "uint32_t";
-			case 64: return "uint64_t";
+		switch (tok) {
+		case TOK_PLUS:
+			return ir->CreateAdd(l, r);
+		case TOK_MINUS:
+			// special case for pointers, convert to pointer sized int
+			// and then convert back to resulting int type
+			if (IS_STYPE_POINTER(lt)) {
+				// CreatePtrDiff uses i64 to calculate stuff,
+				// should we change it?
+				Value *dif = ir->CreatePtrDiff(l, r);
+				return ir->CreateTrunc(dif, Type::getInt32Ty(LLGC));
+				/*
+				int bits = lt->bits();
+				const Type *endty = llvmtype(ist);
+				const Type *ity = IntegerType::get(LLGC, bits);
+				l = ir->CreatePtrToInt(l, ity);
+				r = ir->CreatePtrToInt(r, ity);
+				Value *sub = ir->CreateSub(l, r);
+				return ir->CreateBitCast(sub, endty);
+				*/
 			}
+			return ir->CreateSub(l, r);
+		case TOK_TIMES:
+			return ir->CreateMul(l, r);
+		case TOK_DIVIDE:
+			if (ist->unsignd)
+				return ir->CreateUDiv(l, r);
+			return ir->CreateSDiv(l, r);
+		case TOK_AND:
+			return ir->CreateAnd(l, r);
+		case TOK_OR:
+			return ir->CreateOr(l, r);
+		case TOK_XOR:
+			return ir->CreateXor(l, r);
+		case TOK_MOD:
+			if (ist->unsignd)
+				return ir->CreateURem(l, r);
+			return ir->CreateSRem(l, r);
+		case TOK_SHIFTL:
+			return ir->CreateShl(l, r);
+		case TOK_SHIFTR:
+			if (ist->unsignd)
+				return ir->CreateLShr(l, r);
+			return ir->CreateAShr(l, r);
+		}
+	} else if (IS_STYPE_FLOAT(et)) {
+		switch (tok) {
+		case TOK_PLUS:
+			return ir->CreateFAdd(l, r);
+		case TOK_MINUS:
+			return ir->CreateFSub(l, r);
+		case TOK_TIMES:
+			return ir->CreateFMul(l, r);
+		case TOK_DIVIDE:
+			return ir->CreateFDiv(l, r);
+		}
+	} else if (IS_STYPE_POINTER(et)) {
+		// means pointer/integer addition or subtraction
+		stype_t *lhs = lt;
+		stype_t *rhs = rt;
+
+		// swap elements if left one is integer, it's safe because
+		// integer on the LHS is allowed only when it's an addition
+		if (IS_STYPE_INT(lhs)) {
+			Value *tmp = l;
+			l = r;
+			r = tmp;
+
+			stype_t *tmp2 = lhs;
+			lhs = rhs;
+			rhs = tmp2;
+		}
+
+		if (tok == TOK_MINUS) {
+			const Type *ty = IntegerType::get(LLGC, rhs->bits());
+			Constant *zero = ConstantInt::getNullValue(ty);
+			r = ir->CreateSub(zero, r);
+		}
+		return ir->CreateGEP(l, r);
+	}
+
+	CRAWL_QASSERT(IS_STYPE_BOOL(et));
+	if (IS_STYPE_POINTER_OR_INT(lt)) {
+		if (IS_STYPE_POINTER(lt) && IS_STYPE_POINTER(rt)) {
+			if (!are_the_same(lt->end_type(), rt->end_type()))
+				r = ir->CreatePointerCast(r, llvmtype(lt));
+		}
+		int_stype_t *ist = (int_stype_t*)lt->end_type();
+		switch (tok) {
+		case TOK_EQ:
+			return ir->CreateICmpEQ(l, r);
+		case TOK_NEQ:
+			return ir->CreateICmpNE(l, r);
+		case TOK_LT:
+			if (ist->unsignd)
+				return ir->CreateICmpULT(l, r);
+			return ir->CreateICmpSLT(l, r);
+		case TOK_LE:
+			if (ist->unsignd)
+				return ir->CreateICmpULE(l, r);
+			return ir->CreateICmpSLE(l, r);
+		case TOK_GT:
+			if (ist->unsignd)
+				return ir->CreateICmpUGT(l, r);
+			return ir->CreateICmpSGT(l, r);
+		case TOK_GE:
+			if (ist->unsignd)
+				return ir->CreateICmpUGE(l, r);
+			return ir->CreateICmpSGE(l, r);
+		}
+	} else if (IS_STYPE_FLOAT(lt)) {
+		switch (tok) {
+		case TOK_EQ:
+			return ir->CreateFCmpOEQ(l, r);
+		case TOK_NEQ:
+			return ir->CreateFCmpONE(l, r);
+		case TOK_LT:
+			return ir->CreateFCmpOLT(l, r);
+		case TOK_LE:
+			return ir->CreateFCmpOLE(l, r);
+		case TOK_GT:
+			return ir->CreateFCmpOGT(l, r);
+		case TOK_GE:
+			return ir->CreateFCmpOGE(l, r);
+		}
+	} else {
+		CRAWL_QASSERT(IS_STYPE_BOOL(lt));
+		switch (tok) {
+		case TOK_EQ:
+			return ir->CreateICmpEQ(l, r);
+		case TOK_NEQ:
+			return ir->CreateICmpNE(l, r);
+		}
+	}
+	return 0;
+}
+
+Value *llvm_backend_t::codegen_binary_expr(binary_expr_t *expr)
+{
+	Value *l = 0, *r = 0;
+	if (expr->tok != TOK_ANDAND && expr->tok != TOK_OROR) {
+		l = codegen_expr_value(expr->lhs);
+		r = codegen_expr_value(expr->rhs);
+		CRAWL_QASSERT(l && r);
+		return codegen_binary_expr_raw(l, r, expr->vst.stype,
+					       expr->lhs->vst.stype,
+					       expr->rhs->vst.stype,
+					       expr->tok);
+	}
+
+	// one complex case left, '&&' and '||' operators, their semantics
+	// requires me to create branching
+	CRAWL_QASSERT(IS_STYPE_BOOL(expr->lhs->vst.stype));
+	CRAWL_QASSERT(IS_STYPE_BOOL(expr->rhs->vst.stype));
+	CRAWL_QASSERT(expr->tok == TOK_ANDAND || expr->tok == TOK_OROR);
+
+	// eval LHS and use it as condition
+	Value *cond = codegen_expr_value(expr->lhs);
+	CRAWL_QASSERT(cond != 0);
+
+	// utils
+	BasicBlock *I = ir->GetInsertBlock();
+	Function *f = I->getParent();
+	CRAWL_QASSERT(f != 0);
+	const Type *boolty = Type::getInt1Ty(LLGC);
+	Constant *zero = ConstantInt::getNullValue(boolty);
+
+	// prepare blocks
+	BasicBlock *B = BasicBlock::Create(LLGC, "", f);
+	BasicBlock *E = BasicBlock::Create(LLGC, "", f);
+
+	// insertion block value, branch block value
+	Value *Iv, *Bv;
+
+	// &&: if lhs then rhs else false
+	if (expr->tok == TOK_ANDAND) {
+		ir->CreateCondBr(cond, B, E);
+		Iv = ConstantInt::getFalse(LLGC);
+
+		// rhs
+		ir->SetInsertPoint(B);
+		Bv = codegen_expr_value(expr->rhs);
+		CRAWL_QASSERT(Bv != 0);
+		ir->CreateBr(E);
+	// ||: if lhs then true else rhs
+	} else {
+		ir->CreateCondBr(cond, E, B);
+		Iv = ConstantInt::getTrue(LLGC);
+
+		// rhs
+		ir->SetInsertPoint(B);
+		Bv = codegen_expr_value(expr->rhs);
+		CRAWL_QASSERT(Bv != 0);
+		ir->CreateBr(E);
+	}
+	// end block
+	ir->SetInsertPoint(E);
+	PHINode *phi = ir->CreatePHI(boolty);
+	phi->reserveOperandSpace(2);
+	phi->addIncoming(Iv, I);
+	phi->addIncoming(Bv, B);
+	return phi;
+}
+
+Value *llvm_backend_t::codegen_unary_expr(unary_expr_t *e)
+{
+	// unary '&' returns an address, no need to do a load
+	if (e->tok == TOK_AND)
+		return codegen_expr_addr(e->expr);
+
+	Value *expr = codegen_expr_value(e->expr);
+	// unary '+' is a no-op
+	if (e->tok == TOK_PLUS)
+		return expr;
+
+	const Type *ty = llvmtype(e->expr->vst.stype);
+
+	switch (e->tok) {
+	case TOK_MINUS:
+		CRAWL_QASSERT(IS_STYPE_NUMBER(e->expr->vst.stype));
+		return ir->CreateNeg(expr);
+	case TOK_XOR:
+		CRAWL_QASSERT(IS_STYPE_INT(e->expr->vst.stype));
+		return ir->CreateNot(expr);
+	case TOK_NOT:
+		CRAWL_QASSERT(IS_STYPE_BOOL(e->expr->vst.stype));
+		return ir->CreateNot(expr);
+	case TOK_TIMES:
+		return ir->CreateLoad(expr);
+	}
+
+	CRAWL_QASSERT(!"unreachable");
+	return 0;
+}
+
+Value *llvm_backend_t::codegen_type_cast_expr(type_cast_expr_t *e)
+{
+	stype_t *from = e->expr->vst.stype;
+	stype_t *to = e->vst.stype;
+	Value *expr = codegen_expr_value(e->expr);
+	// case 1: float -> int OR int -> float
+	if ((IS_STYPE_FLOAT(from) && IS_STYPE_INT(to)) ||
+	    (IS_STYPE_INT(from) && IS_STYPE_FLOAT(to)))
+	{
+		if (IS_STYPE_FLOAT(from)) {
+			// float -> int
+			int_stype_t *ist = (int_stype_t*)to->end_type();
+			if (ist->unsignd)
+				return ir->CreateFPToUI(expr, llvmtype(to));
+			else
+				return ir->CreateFPToSI(expr, llvmtype(to));
 		} else {
-			switch (ist->size) {
-			case 8:  return "int8_t";
-			case 16: return "int16_t";
-			case 32: return "int32_t";
-			case 64: return "int64_t";
-			}
+			// int -> float
+			int_stype_t *ist = (int_stype_t*)from->end_type();
+			if (ist->unsignd)
+				return ir->CreateUIToFP(expr, llvmtype(to));
+			else
+				return ir->CreateSIToFP(expr, llvmtype(to));
 		}
-	} else if (st->type & STYPE_FLOAT) {
-		float_stype_t *fst = (float_stype_t*)st->end_type();
-		switch (fst->size) {
-		case 32: return "float";
-		case 64: return "double";
-		}
-	} else if (st->type & (STYPE_POINTER | STYPE_FUNC)) {
-		return "uint8_t*";
-	} else if (st->type & STYPE_ARRAY) {
-		array_stype_t *ast = (array_stype_t*)st->end_type();
-		return array_to_struct(ast);
-	} else if (st->type & STYPE_STRUCT) {
-		struct_stype_t *sst = (struct_stype_t*)st->end_type();
-		return struct_to_struct(sst);
 	}
-	return "???";
+
+	// case 2: integer conversion
+	if (IS_STYPE_INT(from) && IS_STYPE_INT(to)) {
+		if (from->bits() < to->bits()) {
+			// smaller to larger, sext or zext
+			int_stype_t *ist = (int_stype_t*)from->end_type();
+			if (ist->unsignd)
+				return ir->CreateZExt(expr, llvmtype(to));
+			else
+				return ir->CreateSExt(expr, llvmtype(to));
+		}
+
+		if (from->bits() > to->bits()) {
+			// larger to smaller, truncate
+			return ir->CreateTrunc(expr, llvmtype(to));
+		}
+
+		// same sizes no-op
+		return expr;
+	}
+
+	// case 3: floats conversion
+	if (IS_STYPE_FLOAT(from) && IS_STYPE_FLOAT(to)) {
+		if (from->bits() < to->bits())
+			return ir->CreateFPExt(expr, llvmtype(to));
+		if (from->bits() > to->bits())
+			return ir->CreateFPTrunc(expr, llvmtype(to));
+		// same sizes no-op
+		return expr;
+	}
+
+	// case 4: both are pointers, no-op bitcast
+	if (IS_STYPE_POINTER(from) && IS_STYPE_POINTER(to))
+		return ir->CreatePointerCast(expr, llvmtype(to));
+
+	if (IS_STYPE_POINTER_OR_INT(from) && IS_STYPE_POINTER_OR_INT(to)) {
+		// one of them is pointer and the other is int
+		if (IS_STYPE_POINTER(from))
+			return ir->CreatePtrToInt(expr, llvmtype(to));
+		else
+			return ir->CreateIntToPtr(expr, llvmtype(to));
+	}
+
+	// all other casts are no-op
+	return expr;
+}
+
+Value *llvm_backend_t::codegen_call_expr(call_expr_t *e)
+{
+	func_stype_t *fst = (func_stype_t*)e->expr->vst.stype->end_type();
+	Value *func = codegen_expr_addr(e->expr);
+	// hack: If it's a variable function pointer, dereference it.
+	// FIXME: maybe I should have a way to determine that some other way
+	if (isa<PointerType>(cast<PointerType>(func->getType())->getElementType()))
+		func = ir->CreateLoad(func);
+
+	std::vector<Value*> args;
+	args.reserve(e->args.size());
+	for (size_t i = 0, n = e->args.size(); i < n; ++i) {
+		node_t *a = e->args[i];
+		Value *v = codegen_expr_value(a);
+		// if it's a varargs call, we can't figure out the type
+		if (i < fst->args.size())
+			v = codegen_assignment(v, a->vst.stype, fst->args[i]);
+		args.push_back(v);
+	}
+
+	return ir->CreateCall(func, args.begin(), args.end());
+}
+
+Value *llvm_backend_t::codegen_compound_lit(compound_lit_t *e)
+{
+	// this should be triggered when compound literal is generated as a
+	// temporary rvalue (function calls, return statements, etc.)
+	const Type *ty = llvmtype(e->vst.stype);
+	Value *addr = ir_alloca->CreateAlloca(ty);
+
+	std::vector<Value*> values;
+	values.reserve(e->elts.size());
+
+	for (size_t i = 0, n = e->elts.size(); i < n; ++i)
+		values.push_back(codegen_expr_value(e->elts[i]));
+
+	for (size_t i = 0, n = e->elts.size(); i < n; ++i) {
+		Value *vaddr = ir->CreateConstGEP2_32(addr, 0, i);
+		codegen_store(values[i], vaddr, e->elts[i]->vst.stype);
+	}
+
+	return ir->CreateLoad(addr);
+}
+
+Value *llvm_backend_t::codegen_expr_addr(node_t *expr)
+{
+	switch (expr->type) {
+	case node_t::IDENT_EXPR:
+	{
+		ident_expr_t *e = (ident_expr_t*)expr;
+		return e->sdecl->addr;
+	}
+	case node_t::PAREN_EXPR:
+	{
+		paren_expr_t *e = (paren_expr_t*)expr;
+		return codegen_expr_addr(e->expr);
+	}
+	case node_t::UNARY_EXPR:
+	{
+		// *A, we just need to get a value of A, because it's a pointer
+		unary_expr_t *e = (unary_expr_t*)expr;
+		return codegen_expr_value(e->expr);
+	}
+	case node_t::SELECTOR_EXPR:
+	{
+		selector_expr_t *e = (selector_expr_t*)expr;
+		stype_t *t = e->expr->vst.stype;
+		if (IS_STYPE_MODULE(t)) {
+			ident_expr_t *ident = is_ident_expr(e->expr);
+			CRAWL_QASSERT(ident != 0);
+			CRAWL_QASSERT(ident->sdecl->type == SDECL_IMPORT);
+			import_sdecl_t *id = (import_sdecl_t*)ident->sdecl;
+			return id->decls[e->sel->val]->addr;
+		}
+
+		Value *addr;
+		if (IS_STYPE_POINTER(t))
+			addr = codegen_expr_value(e->expr);
+		else
+			addr = codegen_expr_addr(e->expr);
+		return ir->CreateConstInBoundsGEP2_32(addr, 0, e->idx);
+	}
+	case node_t::INDEX_EXPR:
+	{
+		index_expr_t *e = (index_expr_t*)expr;
+		if (IS_STYPE_ARRAY(e->expr->vst.stype)) {
+			Value *addr = codegen_expr_addr(e->expr);
+			Value *idx[] = {
+				ConstantInt::getNullValue(Type::getInt32Ty(LLGC)),
+				codegen_expr_value(e->index)
+			};
+			return ir->CreateGEP(addr, &idx[0], &idx[2]);
+		} else {
+			Value *addr = codegen_expr_value(e->expr);
+			Value *idx = codegen_expr_value(e->index);
+			return ir->CreateGEP(addr, idx);
+		}
+	}
+	default:
+		break;
+	}
+
+	CRAWL_QASSERT(!"unreachable");
+	return 0;
+}
+
+Value *llvm_backend_t::codegen_expr_value(node_t *expr)
+{
+	if (expr->vst.value.type != VALUE_NONE) {
+		if (IS_STYPE_BOOL(expr->vst.stype)) {
+			if (expr->vst.value.to_bool())
+				return ConstantInt::getTrue(LLGC);
+			else
+				return ConstantInt::getFalse(LLGC);
+		}
+
+		const Type *ty = llvmtype(expr->vst.stype);
+		Constant *c = llvmconst(&expr->vst.value, ty);
+		return c;
+	}
+
+	switch (expr->type) {
+	case node_t::BINARY_EXPR:
+	{
+		binary_expr_t *e = (binary_expr_t*)expr;
+		return codegen_binary_expr(e);
+	}
+	case node_t::UNARY_EXPR:
+	{
+		unary_expr_t *e = (unary_expr_t*)expr;
+		return codegen_unary_expr(e);
+	}
+	case node_t::TYPE_CAST_EXPR:
+	{
+		type_cast_expr_t *e = (type_cast_expr_t*)expr;
+		return codegen_type_cast_expr(e);
+	}
+	case node_t::PAREN_EXPR:
+	{
+		paren_expr_t *e = (paren_expr_t*)expr;
+		return codegen_expr_value(e->expr);
+	}
+	case node_t::CALL_EXPR:
+	{
+		call_expr_t *e = (call_expr_t*)expr;
+		return codegen_call_expr(e);
+	}
+	case node_t::COMPOUND_LIT:
+	{
+		compound_lit_t *e = (compound_lit_t*)expr;
+		return codegen_compound_lit(e);
+	}
+	default:
+		break;
+	}
+
+	Value *addr = codegen_expr_addr(expr);
+	return codegen_load(addr, expr->vst.stype);
+}
+
+Value *llvm_backend_t::codegen_load(Value *addr, stype_t *ty)
+{
+	// we can't dereference functions
+	if (IS_STYPE_FUNC(ty))
+		return addr;
+
+	Value *v = ir->CreateLoad(addr);
+	if (IS_STYPE_BOOL(ty))
+		v = ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
+	return v;
+}
+
+Value *llvm_backend_t::codegen_store(Value *val, Value *addr, stype_t *ty)
+{
+	if (IS_STYPE_BOOL(ty))
+		val = ir->CreateZExt(val, Type::getInt8Ty(LLGC));
+	return ir->CreateStore(val, addr);
+}
+
+Value *llvm_backend_t::codegen_cexpr_value(node_t *e)
+{
+	if (e->type == node_t::COMPOUND_LIT) {
+		compound_lit_t *c = (compound_lit_t*)e;
+		c->vals.clear();
+		c->vals.reserve(c->elts.size());
+		for (size_t i = 0, n = c->elts.size(); i < n; ++i)
+			c->vals.push_back(codegen_cexpr_value(c->elts[i]));
+		return 0;
+	}
+	return codegen_expr_value(e);
+}
+
+Value *llvm_backend_t::codegen_cexpr_store(Value *val, Value *addr, node_t *e)
+{
+	if (e->type != node_t::COMPOUND_LIT)
+		return codegen_store(val, addr, e->vst.stype);
+
+	compound_lit_t *c = (compound_lit_t*)e;
+	for (size_t i = 0, n = c->vals.size(); i < n; ++i) {
+		Value *vaddr = ir->CreateConstGEP2_32(addr, 0, i);
+		Value *v = c->vals[i];
+		codegen_cexpr_store(v, vaddr, c->elts[i]);
+	}
+	return 0;
+}
+
+void llvm_backend_t::codegen_init(var_sdecl_t *d)
+{
+	if (d->inited)
+		return;
+
+	IRBuilder<> *save_ir = ir;
+	ir = ir_init;
+
+	codegen_init_deps(d->init);
+	Value *expr = codegen_expr_value(d->init);
+	codegen_store(expr, d->addr, d->stype);
+
+	ir = save_ir;
+}
+
+void llvm_backend_t::codegen_top_var_pre(var_sdecl_t *vsd)
+{
+	const Type *ty = llvmtype(vsd->stype);
+	if (!vsd->init) {
+		vsd->addr = new GlobalVariable(*module, ty, false,
+					       GlobalValue::ExternalLinkage,
+					       Constant::getNullValue(ty),
+					       vsd->name);
+		vsd->inited = true;
+	} else if (vsd->init->vst.value.type != VALUE_NONE) {
+		// we have a value, we can generate the code!
+		Constant *init = llvmconst(&vsd->init->vst.value, ty);
+		vsd->addr = new GlobalVariable(*module, ty, false,
+					       GlobalValue::ExternalLinkage,
+					       init, vsd->name);
+		vsd->inited = true;
+	} else {
+		// otherwise just place an init-less declaration
+		// will be initialized later
+		vsd->addr = new GlobalVariable(*module, ty, false,
+					       GlobalValue::ExternalLinkage,
+					       Constant::getNullValue(ty),
+					       vsd->name);
+	}
+}
+
+void llvm_backend_t::codegen_top_var(var_sdecl_t *vsd)
+{
+	if (vsd->inited)
+		return;
+
+	codegen_init(vsd);
+}
+
+void llvm_backend_t::codegen_top_extern_sdecls(import_sdecl_t *isd)
+{
+	unordered_map<std::string, sdecl_t*>::iterator it, end;
+	for (it = isd->decls.begin(), end = isd->decls.end(); it != end; ++it) {
+		sdecl_t *d = it->second;
+		if (d->type != SDECL_FUNC)
+			continue;
+		if (!d->inited) // means "was used"
+			continue;
+
+		func_sdecl_t *fsd = (func_sdecl_t*)d;
+		codegen_top_func_pre(fsd, isd->prefix.c_str());
+	}
+}
+
+void llvm_backend_t::codegen_top_func_pre(func_sdecl_t *fsd, const char *prefix)
+{
+	std::string name;
+	if (strlen(prefix) == 0)
+		name = fsd->name.c_str();
+	else
+		cppsprintf(&name, "_Crl_%s_%s", prefix, fsd->name.c_str());
+
+	const Type *functy = llvmfunctype((func_stype_t*)fsd->stype);
+	Function *F = Function::Create(cast<FunctionType>(functy),
+				       Function::ExternalLinkage, name, module);
+	fsd->addr = F;
+}
+
+void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
+{
+	func_stype_t *fst = (func_stype_t*)fsd->stype;
+	func_type_t *ft = fsd->decl->ftype;
+
+	if (!fsd->decl->body)
+		return;
+
+	func_sdecl_t *save_cur_func_decl = cur_func_decl;
+	cur_func_decl = fsd;
+
+	Function *F = cast<Function>(fsd->addr);
+	BasicBlock *entry = BasicBlock::Create(LLGC, "", F);
+
+	// setup IR builders, one for instructions and other for allocas
+	IRBuilder<> ib(LLGC);
+	IRBuilder<> ib_alloca(LLGC);
+	ib.SetInsertPoint(entry);
+
+	// dummy instruction for alloca inserter
+	Instruction *alloca_pt;
+	Constant *zero = ConstantInt::getNullValue(Type::getInt32Ty(LLGC));
+	alloca_pt = CastInst::Create(Instruction::BitCast, zero,
+				     Type::getInt32Ty(LLGC));
+	ib.Insert(alloca_pt);
+	ib_alloca.SetInsertPoint(alloca_pt);
+
+	IRBuilder<> *save_ir = ir;
+	IRBuilder<> *save_ir_alloca = ir_alloca;
+	ir = &ib;
+	ir_alloca = &ib_alloca;
+
+	// hack for main function, call __init_crawl_globals
+	if (fsd->name == "main")
+		ir->CreateCall(ir_init->GetInsertBlock()->getParent());
+
+	// allocate stack space for arguments
+	size_t num = 0;
+	Function::arg_iterator it = F->arg_begin();
+	for (size_t i = 0, n = ft->args.size(); i < n; ++i) {
+		field_t *f = ft->args[i];
+
+		if (f->names.empty()) {
+			// no name, means unused arg (actually all of them)
+			num++;
+			it++;
+			continue;
+		}
+
+		for (size_t j = 0, m = f->names.size(); j < m; ++j, ++num, ++it) {
+			CRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
+			var_sdecl_t *d = (var_sdecl_t*)f->names[j]->sdecl;
+
+			d->addr = ir_alloca->CreateAlloca(llvmtype(d->stype));
+			ir->CreateStore(it, d->addr);
+		}
+	}
+
+	// generate instructions for body
+	codegen_block_stmt(fsd->decl->body);
+
+	finalize_function(ir, fst->results.empty());
+
+	ir = save_ir;
+	ir_alloca = save_ir_alloca;
+	alloca_pt->eraseFromParent();
+	alloca_pt = 0;
+	cur_func_decl = save_cur_func_decl;
+}
+
+void llvm_backend_t::codegen_top_sdecl_pre(sdecl_t *d)
+{
+	switch (d->type) {
+	case SDECL_VAR:
+		codegen_top_var_pre((var_sdecl_t*)d);
+		break;
+	case SDECL_FUNC:
+		codegen_top_func_pre((func_sdecl_t*)d, uid.c_str());
+		break;
+	default:
+		break;
+	}
+}
+
+void llvm_backend_t::codegen_top_sdecl(sdecl_t *d)
+{
+	switch (d->type) {
+	case SDECL_VAR:
+		codegen_top_var((var_sdecl_t*)d);
+		break;
+	case SDECL_FUNC:
+		codegen_top_func((func_sdecl_t*)d);
+		break;
+	default:
+		break;
+	}
+}
+
+void llvm_backend_t::codegen_top_sdecls(std::vector<const char*> *pkgdecls)
+{
+	for (size_t i = 0, n = used_extern_sdecls->size(); i < n; ++i)
+		codegen_top_extern_sdecls(used_extern_sdecls->at(i));
+
+	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
+		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
+		codegen_top_sdecl_pre(sd);
+	}
+	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
+		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
+		codegen_top_sdecl(sd);
+	}
+}
+
+IRBuilder<> *llvm_backend_t::create_init_func()
+{
+	FunctionType *ft = FunctionType::get(Type::getVoidTy(LLGC), false);
+	Function *f = Function::Create(ft, Function::PrivateLinkage,
+				       "__init_crawl_globals", module);
+
+	BasicBlock *entry = BasicBlock::Create(LLGC, "", f);
+	IRBuilder<> *ib = new IRBuilder<>(LLGC);
+	ib->SetInsertPoint(entry);
+	return ib;
+}
+
+void llvm_backend_t::finalize_init_func()
+{
+	ir_init->CreateRetVoid();
+}
+
+void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
+{
+	module = new Module("Main", LLGC);
+	ir = 0;
+	ir_alloca = 0;
+	ir_init = create_init_func();
+
+	cur_func_decl = 0;
+	cur_loop = 0;
+	cur_switch = 0;
+	ended_with_fallthrough = false;
+
+	codegen_top_sdecls(pkgdecls);
+	finalize_init_func();
+
+	if (dump)
+		module->dump();
+	verifyModule(*module);
+
+	// CODEGEN
+	InitializeNativeTarget();
+	InitializeNativeTargetAsmPrinter();
+
+	std::string error;
+	std::string triple = sys::getHostTriple();
+	const Target *target = TargetRegistry::lookupTarget(triple, error);
+	if (!target) {
+		fprintf(stderr, "%s\n", error.c_str());
+		return;
+	}
+
+	TargetMachine *machine = target->createTargetMachine(triple, "");
+
+	PassManager *pm = new PassManager();
+	pm->add(new TargetData(*machine->getTargetData()));
+
+	int fd;
+	SmallVector<char, 128> tmpfilename;
+	sys::fs::unique_file("obj-%%%%%%", fd, tmpfilename);
+	tmpfilename.push_back(0);
+	{
+		raw_fd_ostream tmpfile(fd, true);
+		formatted_raw_ostream out(tmpfile);
+		if (machine->addPassesToEmitFile(*pm, out,
+						 TargetMachine::CGFT_ObjectFile,
+						 CodeGenOpt::Default))
+		{
+			fprintf(stderr, "fuck!\n");
+			return;
+		}
+		pm->run(*module);
+	}
+
+	std::string libs_str;
+	for (size_t i = 0, n = libs->size(); i < n; ++i) {
+		cppsprintf(&libs_str, "-l%s ", libs->at(i));
+	}
+
+	std::string cmd;
+	cppsprintf(&cmd, "clang %s -o %s %s",
+		   libs_str.c_str(), out_name, &tmpfilename[0]);
+	system(cmd.c_str());
+	unlink(&tmpfilename[0]);
+}
+
+void pass3_t::pass(std::vector<const char*> *pkgdecls)
+{
+	llvm_backend_t be;
+	be.uid = uid;
+	be.pkgscope = pkgscope;
+	be.used_extern_sdecls = used_extern_sdecls;
+	be.out_name = out_name;
+	be.libs = libs;
+	be.dump = dump;
+	be.pass(pkgdecls);
 }

@@ -1,7 +1,7 @@
 #include <getopt.h>
 #include <ctype.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-#include "crawl.hpp"
+#include "crawlc.hpp"
 #include "cityhash/city.h"
 
 using google::protobuf::io::FileOutputStream;
@@ -83,7 +83,7 @@ struct options_t {
 static void print_help_and_exit()
 {
 	printf(""
-"usage: crawl [options] <files>\n"
+"usage: crawlc [options] <files>\n"
 "\n"
 "    -h, --help           print this message and exit\n"
 "    -v, --version        print version and exit\n"
@@ -102,7 +102,7 @@ static void print_help_and_exit()
 
 static void print_version_and_exit()
 {
-	printf("crawl version 0.1\n");
+	printf("crawlc version 0.1\n");
 	exit(0);
 }
 

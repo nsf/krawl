@@ -4,7 +4,7 @@ $errors = 0
 
 def run_test(f)
 	# compile
-	%x[crawl -o test #{f}]
+	%x[crawlc -o test #{f}]
 	out = %x[./test]
 	gold = IO.read("#{f}.expected") rescue "To be determined"
 
@@ -15,7 +15,7 @@ def run_test(f)
 end
 
 if ARGV.one? then
-	%x[crawl -o test #{ARGV[0]}]
+	%x[crawlc -o test #{ARGV[0]}]
 	puts %x[./test]
 	File.delete("test")
 	exit 0

@@ -1,13 +1,13 @@
 // vim: filetype=ragel
 
-#include "crawl.hpp"
+#include "crawlc.hpp"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
 %%{
-	machine crawl;
+	machine crawlc;
 
 	action append_oct { append_oct(fpc-2); }
 	action append_hex2 { append_hex(fpc-1, 2); }
