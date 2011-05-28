@@ -108,7 +108,8 @@ have to use it in all other places, especially if your type system is strict
 about that. The end result here, it causes many maintenance problems and solves
 zero real problems. Keyword +const+ should prevent accidental writes to a
 memory location, but the most horrible bugs, which are buffer overflow writes,
-don't care about +const+. As simple as that, no +const+ in Crawl.
+don't care about +const+. As simple as that, no +const+ type qualifier in
+Crawl. Constants in Crawl have completely different meaning.
 
 NOTE: Most likely +volatile+ and +restrict+ will be added in future in some
 form.
