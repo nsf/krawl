@@ -2,3 +2,6 @@ Crawl is a new programming language being developed mostly by me. It is largely
 based on the mix of Go and C programming languages. Currently it's not ready
 for end user usage, but if you're interested in programming languages
 development, find us on IRC: #crawlang @ freenode.
+
+For a sneak peek take a look at this document: 
+	http://nosmileface.ru/crawl/crawl_by_example.html
