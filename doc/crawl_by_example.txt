@@ -597,7 +597,7 @@ const (
 	BIT5;             // 16 (0b00010000)
 )
 
-// bit masks (Crawl uses ^ as binary NOT, in C it's ~)
+// bit masks (Crawl uses ^ as unary NOT, in C it's ~)
 const (
 	ALL_BUT_BIT1 = ^(1 << iota).(uint8); // 254 (0b11111110)
 	ALL_BUT_BIT2;                        // 253 (0b11111101)
