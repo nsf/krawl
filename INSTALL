@@ -1,0 +1,8 @@
+This will install crawl to your home dir at ~/crawl. 
+Executable will be available as ~/crawl/bin/crawl.
+Add ~/crawl/bin to your PATH.
+
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=~/crawl -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RELEASE ..
+make -j4 install

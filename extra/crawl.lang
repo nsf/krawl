@@ -1,0 +1,31 @@
+# use C comments
+include "c_comment.lang"
+
+#label = '^[[:blank:]]*[[:alnum:]]+:[[:blank:]]*\z'
+
+#(keyword,normal,classname) = 
+#  `(\<struct)([[:blank:]]+)([[:alnum:]_]+)`
+
+include "number.lang"
+
+include "c_string.lang"
+
+# uninterpreted multiline strings
+string delim "`" "`" multiline
+
+keyword = "if|else|for|switch|case|default",
+	"return|continue|fallthrough|break",
+	"func|type|import|const|var|struct",
+	"true|false|nil|iota"
+
+type = "void|bool|int|uint|byte|float|double",
+	"int8|int16|int32|int64",
+	"uint8|uint16|uint32|uint64",
+	"float32|float64"
+
+include "symbols.lang"
+
+cbracket = "{|}"
+
+#include "function.lang"
+#include "clike_vardeclaration.lang"
