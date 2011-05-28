@@ -205,6 +205,20 @@ void syntax_check_const_decl(diagnostic_t *diag, const_decl_t *d)
 	// a number of names should match to a number of values
 	for (size_t i = 0, n = d->specs.size(); i < n; ++i) {
 		value_spec_t *s = d->specs[i];
+		if (s->type && s->values.empty()) {
+			std::vector<source_loc_range_t> ranges;
+			ranges.reserve(s->names.size() + s->values.size());
+			for (size_t i = 0, n = s->names.size(); i < n; ++i)
+				ranges.push_back(s->names[i]->source_loc_range());
+			source_loc_t pos = s->type->source_loc_range().beg;
+			message_t *m;
+			m = new_message(MESSAGE_ERROR,
+					pos, true,
+					&ranges[0], ranges.size(),
+					"constant declaration cannot have type "
+					"without initializer expression");
+			diag->report(m);
+		}
 		if (!s->values.empty() && s->names.size() != s->values.size()) {
 			std::vector<source_loc_range_t> ranges;
 			ranges.reserve(s->names.size() + s->values.size());
