@@ -23,6 +23,58 @@ func countA(str *byte) (count int)
 	}
 }
 
+func test_if(wantone bool) int
+{
+	if wantone {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+const (
+	ONE = iota;
+	TWO;
+	THREE;
+	FOUR;
+	FIVE;
+)
+
+func test_switch(what int) int
+{
+	switch what {
+	case ONE:
+		return 1;
+	case TWO:
+		return 2;
+	case THREE:
+		return 3;
+	case FOUR:
+		return 4;
+	case FIVE:
+		return 5;
+	default:
+		return 0;
+	}
+}
+
+func test_switch2(what int) int
+{
+	switch what {
+	case ONE:
+		return 1;
+	case TWO:
+		return 2;
+	case THREE:
+		return 3;
+	case FOUR:
+		return 4;
+	case FIVE:
+		return 5;
+	}
+	return 0;
+}
+
 func main(argc int, argv **byte) int
 {
 	stdio.printf("%d\n", single_return());
@@ -58,5 +110,10 @@ func main(argc int, argv **byte) int
 	}
 
 	stdio.printf("%d\n", countA("AAbbccAdfA"));
+	stdio.printf("if %d %d\n", test_if(true), test_if(false));
+	stdio.printf("switch %d %d %d\n",
+		     test_switch(ONE), test_switch(THREE), test_switch(99));
+	stdio.printf("switch2 %d %d %d\n",
+		     test_switch2(TWO), test_switch2(THREE), test_switch2(99));
 	return 0;
 }

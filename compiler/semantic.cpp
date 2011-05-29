@@ -2158,11 +2158,17 @@ bool pass2_t::stmt_returns(node_t *stmt)
 		// switch statement is considered as returning, if all of its
 		// branches return
 		switch_stmt_t *s = (switch_stmt_t*)stmt;
+		bool has_default = false;
 		for (size_t i = 0, n = s->body->stmts.size(); i < n; ++i) {
-			if (!stmt_returns(s->body->stmts[i]))
+			node_t *cc = s->body->stmts[i];
+			if (!stmt_returns(cc))
 				return false;
+
+			CRAWL_QASSERT(cc->type == node_t::SWITCH_STMT_CASE);
+			if (((switch_stmt_case_t*)cc)->exprs.empty())
+				has_default = true;
 		}
-		return true;
+		return has_default;
 	}
 	case node_t::SWITCH_STMT_CASE:
 	{
