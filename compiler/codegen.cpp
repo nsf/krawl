@@ -84,7 +84,6 @@ struct llvm_backend_t {
 	Value *codegen_expr_addr(node_t *e);
 	Value *codegen_expr_value(node_t *e);
 	Value *codegen_load(Value *addr, stype_t *ty);
-	Value *codegen_store(Value *val, Value *addr, stype_t *ty);
 
 	Value *codegen_cexpr_value(node_t *e);
 	Value *codegen_cexpr_store(Value *val, Value *addr, node_t *e);
@@ -170,6 +169,19 @@ static void finalize_function(IRBuilder<> *ir, func_sdecl_t *fsd)
 
 	if (fsd->has_named_return_values() && !is_bb_returns(bb))
 		generate_NRV_ret(ir, fsd);
+}
+
+static stype_t *compound_lit_stype_i(compound_lit_t *c, size_t i)
+{
+	if (IS_STYPE_ARRAY(c->vst.stype)) {
+		array_stype_t *ast = (array_stype_t*)c->vst.stype->end_type();
+		return ast->elem;
+	} else {
+		CRAWL_QASSERT(IS_STYPE_STRUCT(c->vst.stype));
+		struct_stype_t *sst = (struct_stype_t*)c->vst.stype->end_type();
+		return sst->fields[i].type;
+	}
+	CRAWL_ASSERT(false, "unreachable");
 }
 
 Constant *llvm_backend_t::llvmconst(value_t *val, const Type *ty)
@@ -1166,8 +1178,10 @@ Value *llvm_backend_t::codegen_compound_lit(compound_lit_t *e)
 		values.push_back(codegen_expr_value(e->elts[i]));
 
 	for (size_t i = 0, n = e->elts.size(); i < n; ++i) {
+		stype_t *vt = compound_lit_stype_i(e, i);
+		Value *v = codegen_assignment(values[i], e->elts[i]->vst.stype, vt);
 		Value *vaddr = ir->CreateConstGEP2_32(addr, 0, i);
-		codegen_store(values[i], vaddr, e->elts[i]->vst.stype);
+		ir->CreateStore(v, vaddr);
 	}
 
 	return ir->CreateLoad(addr);
@@ -1301,13 +1315,6 @@ Value *llvm_backend_t::codegen_load(Value *addr, stype_t *ty)
 	return v;
 }
 
-Value *llvm_backend_t::codegen_store(Value *val, Value *addr, stype_t *ty)
-{
-	if (IS_STYPE_BOOL(ty))
-		val = ir->CreateZExt(val, Type::getInt8Ty(LLGC));
-	return ir->CreateStore(val, addr);
-}
-
 Value *llvm_backend_t::codegen_cexpr_value(node_t *e)
 {
 	if (e->type == node_t::COMPOUND_LIT) {
@@ -1323,14 +1330,19 @@ Value *llvm_backend_t::codegen_cexpr_value(node_t *e)
 
 Value *llvm_backend_t::codegen_cexpr_store(Value *val, Value *addr, node_t *e)
 {
-	if (e->type != node_t::COMPOUND_LIT)
-		return codegen_store(val, addr, e->vst.stype);
+	CRAWL_QASSERT(e->type == node_t::COMPOUND_LIT);
 
 	compound_lit_t *c = (compound_lit_t*)e;
 	for (size_t i = 0, n = c->vals.size(); i < n; ++i) {
 		Value *vaddr = ir->CreateConstGEP2_32(addr, 0, i);
 		Value *v = c->vals[i];
-		codegen_cexpr_store(v, vaddr, c->elts[i]);
+		if (!v)
+			codegen_cexpr_store(v, vaddr, c->elts[i]);
+		else {
+			stype_t *vt = compound_lit_stype_i(c, i);
+			v = codegen_assignment(v, c->elts[i]->vst.stype, vt);
+			ir->CreateStore(v, vaddr);
+		}
 	}
 	return 0;
 }
@@ -1345,7 +1357,8 @@ void llvm_backend_t::codegen_init(var_sdecl_t *d)
 
 	codegen_init_deps(d->init);
 	Value *expr = codegen_expr_value(d->init);
-	codegen_store(expr, d->addr, d->stype);
+	expr = codegen_assignment(expr, d->init->vst.stype, d->stype);
+	ir->CreateStore(expr, d->addr);
 
 	ir = save_ir;
 }
