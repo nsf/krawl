@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 $errors = 0
+$problems = []
 
 def run_test(f)
 	# compile
@@ -9,9 +10,11 @@ def run_test(f)
 	gold = IO.read("#{f}.expected") rescue "To be determined"
 
 	if out != gold then
-		puts "#{f}: no match!"
+		$problems << "#{f}: no match!"
 		$errors += 1
+		return false
 	end
+	return true
 end
 
 if ARGV.one? then
@@ -22,10 +25,19 @@ if ARGV.one? then
 end
 
 Dir["*.crl"].sort.each do |f|
-	run_test(f)
+	if run_test(f)
+		STDOUT.print("+")
+	else
+		STDOUT.print("-")
+	end
 end
 
+puts
+
 if $errors != 0 then
+	$problems.each do |p|
+		puts p
+	end
 	puts "-------------------------------------------"
 	puts "There were #{$errors} unexpected ERRORS!"
 end
