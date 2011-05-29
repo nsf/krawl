@@ -571,7 +571,7 @@ void llvm_backend_t::codegen_incdec_stmt(incdec_stmt_t *stmt)
 	// if 'stmt->expr' is a pointer, RHS is an integer size, but since
 	// codegen_binary_expr_raw doesn't really care about that, we're ok here
 	Value *result = codegen_binary_expr_raw(l, r, t, t, t, tok);
-	codegen_store(result, addr, t);
+	ir->CreateStore(result, addr);
 }
 
 void llvm_backend_t::codegen_compound_assign_stmt(assign_stmt_t *stmt)
@@ -583,7 +583,7 @@ void llvm_backend_t::codegen_compound_assign_stmt(assign_stmt_t *stmt)
 	stype_t *rt = stmt->rhs[0]->vst.stype;
 	int tok = compound_assignment_to_binary_tok(stmt->tok);
 	Value *result = codegen_binary_expr_raw(l, r, lt, lt, rt, tok);
-	codegen_store(result, addr, lt);
+	ir->CreateStore(result, addr);
 }
 
 void llvm_backend_t::codegen_assign_stmt(assign_stmt_t *stmt)
@@ -637,7 +637,7 @@ void llvm_backend_t::codegen_assign_stmt(assign_stmt_t *stmt)
 			codegen_cexpr_store(values[i], addr, stmt->rhs[i]);
 		} else {
 			Value *v = codegen_assignment(values[i], vtypes[i], to);
-			codegen_store(v, addr, vtypes[i]);
+			ir->CreateStore(v, addr);
 		}
 	}
 }
@@ -669,7 +669,7 @@ void llvm_backend_t::codegen_var_spec(value_spec_t *spec)
 				Value *v = codegen_assignment(inits[i],
 							      inittypes[i],
 							      vsd->stype);
-				codegen_store(v, vsd->addr, inittypes[i]);
+				ir->CreateStore(v, vsd->addr);
 			}
 		}
 		else
