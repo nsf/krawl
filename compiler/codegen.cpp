@@ -119,7 +119,39 @@ static void insert_opt_endjmp(IRBuilder<> *ir, BasicBlock *E)
 	}
 }
 
-static void finalize_function(IRBuilder<> *ir, bool insert_void_ret)
+static bool is_bb_returns(BasicBlock *bb)
+{
+	return !bb->empty() && isa<ReturnInst>(bb->back());
+}
+
+static void generate_NRV_ret(IRBuilder<> *ir, func_sdecl_t *fsd)
+{
+	func_stype_t *fst = (func_stype_t*)fsd->stype;
+	func_type_t *ft = fsd->decl->ftype;
+
+	std::vector<Value*> vals;
+	vals.reserve(fst->results.size());
+
+	for (size_t i = 0, n = ft->results.size(); i < n; ++i) {
+		field_t *f = ft->results[i];
+		// names cannot be empty here
+
+		for (size_t j = 0, m = f->names.size(); j < m; ++j) {
+			CRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
+			var_sdecl_t *d = (var_sdecl_t*)f->names[j]->sdecl;
+			// no need to perform additional assignment magic
+			// types here are a 100% match anyway
+			vals.push_back(ir->CreateLoad(d->addr));
+		}
+	}
+
+	if (vals.size() == 1)
+		ir->CreateRet(vals[0]);
+	else
+		ir->CreateAggregateRet(&vals[0], vals.size());
+}
+
+static void finalize_function(IRBuilder<> *ir, func_sdecl_t *fsd)
 {
 	BasicBlock *bb = ir->GetInsertBlock();
 	// no predecessors
@@ -128,8 +160,16 @@ static void finalize_function(IRBuilder<> *ir, bool insert_void_ret)
 		return;
 	}
 
-	if (insert_void_ret)
+	func_stype_t *fst = (func_stype_t*)fsd->stype;
+	func_type_t *ft = fsd->decl->ftype;
+
+	if (fst->results.empty()) {
 		ir->CreateRetVoid();
+		return;
+	}
+
+	if (fsd->has_named_return_values() && !is_bb_returns(bb))
+		generate_NRV_ret(ir, fsd);
 }
 
 Constant *llvm_backend_t::llvmconst(value_t *val, const Type *ty)
@@ -656,8 +696,10 @@ void llvm_backend_t::codegen_return_stmt(return_stmt_t *stmt)
 {
 	func_stype_t *fst = (func_stype_t*)cur_func_decl->stype;
 	if (stmt->returns.size() == 0) {
-		// TODO: handle named MRV
-		ir->CreateRetVoid();
+		if (cur_func_decl->has_named_return_values())
+			generate_NRV_ret(ir, cur_func_decl);
+		else
+			ir->CreateRetVoid();
 	} else if (stmt->returns.size() == 1) {
 		Value *v = codegen_expr_value(stmt->returns[0]);
 		v = codegen_assignment(v, stmt->returns[0]->vst.stype,
@@ -1408,19 +1450,17 @@ void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
 		ir->CreateCall(ir_init->GetInsertBlock()->getParent());
 
 	// allocate stack space for arguments
-	size_t num = 0;
 	Function::arg_iterator it = F->arg_begin();
 	for (size_t i = 0, n = ft->args.size(); i < n; ++i) {
 		field_t *f = ft->args[i];
 
 		if (f->names.empty()) {
 			// no name, means unused arg (actually all of them)
-			num++;
 			it++;
 			continue;
 		}
 
-		for (size_t j = 0, m = f->names.size(); j < m; ++j, ++num, ++it) {
+		for (size_t j = 0, m = f->names.size(); j < m; ++j, ++it) {
 			CRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
 			var_sdecl_t *d = (var_sdecl_t*)f->names[j]->sdecl;
 
@@ -1429,10 +1469,28 @@ void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
 		}
 	}
 
+	// add to the stack and zero initialize named return values if any
+	if (fsd->has_named_return_values()) {
+		for (size_t i = 0, n = ft->results.size(); i < n; ++i) {
+			field_t *f = ft->results[i];
+			// names cannot be empty here
+
+			for (size_t j = 0, m = f->names.size(); j < m; ++j) {
+				CRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
+				var_sdecl_t *d = (var_sdecl_t*)f->names[j]->sdecl;
+
+				const Type *ty = llvmtype(d->stype);
+				d->addr = ir_alloca->CreateAlloca(ty);
+				Value *nil = Constant::getNullValue(ty);
+				ir->CreateStore(nil, d->addr);
+			}
+		}
+	}
+
 	// generate instructions for body
 	codegen_block_stmt(fsd->decl->body);
 
-	finalize_function(ir, fst->results.empty());
+	finalize_function(ir, fsd);
 
 	ir = save_ir;
 	ir_alloca = save_ir_alloca;
