@@ -317,6 +317,7 @@ struct node_t {
 		CALL_EXPR,
 		PAREN_EXPR,
 		TYPE_CAST_EXPR,
+		TYPE_EXPR,
 
 		EXPR_STMT,
 		ASSIGN_STMT,
@@ -728,6 +729,20 @@ struct type_cast_expr_t : node_t {
 	source_loc_range_t source_loc_range();
 };
 
+//------------------------------------------------------------------------------
+// type_expr_t
+//------------------------------------------------------------------------------
+
+struct type_expr_t : node_t {
+	node_t *etype;
+	source_loc_t pos; // 'type'
+
+	type_expr_t(node_t *etype, token_t *tok);
+	~type_expr_t();
+	std::string to_string(int indent);
+	source_loc_range_t source_loc_range();
+};
+
 
 
 
@@ -1005,12 +1020,11 @@ enum {
 	BUILTIN_FLOAT32,
 	BUILTIN_FLOAT64,
 	BUILTIN_ABSTRACT_FLOAT, // for literals
-
 	BUILTIN_ABSTRACT_STRING, // for literals
-
 	BUILTIN_ABSTRACT_COMPOUND, // for literals
-
 	BUILTIN_ABSTRACT_MODULE, // for modules
+
+	BUILTIN_FUNC,
 
 	BUILTIN_N
 };
@@ -1465,6 +1479,7 @@ var_sdecl_t *new_var_sdecl(sdecl_tracker_t *dt, ident_expr_t *name,
 var_sdecl_t *new_typed_var_sdecl(sdecl_tracker_t *dt, ident_expr_t *name,
 				 stype_t *type, node_t *vtype);
 func_sdecl_t *new_func_sdecl(sdecl_tracker_t *dt, func_decl_t *decl);
+func_sdecl_t *new_builtin_func_sdecl(sdecl_tracker_t *dt, const char *name);
 import_sdecl_t *new_import_sdecl(sdecl_tracker_t *dt, import_spec_t *spec);
 sdecl_t *new_sdecl(sdecl_tracker_t *dt, const char *name, sdecl_type_t type);
 
@@ -1664,6 +1679,8 @@ struct pass2_t {
 	// Used external declarations
 	std::vector<import_sdecl_t*> used_extern_sdecls;
 
+	void error_args_mismatch(call_expr_t *expr, size_t num);
+
 	size_t typegen_array_size(node_t *size);
 	bool typegen_for_funcfields(stype_vector_t *sv, field_vector_t *fv);
 	bool typegen_for_structfields(std::vector<struct_field_t> *out,
@@ -1674,12 +1691,15 @@ struct pass2_t {
 
 	bool typecheck_call_expr_args(call_expr_t *expr, func_stype_t *ft);
 	stype_t *typecheck_var_init(node_t *init, int index);
+	value_stype_t typecheck_builtin_call_expr(call_expr_t *expr,
+						  func_stype_t *fst);
 
 	value_stype_t typecheck_basic_lit_expr(basic_lit_expr_t *expr);
 	value_stype_t typecheck_binary_expr(binary_expr_t *expr);
 	value_stype_t typecheck_unary_expr(unary_expr_t *expr);
 	value_stype_t typecheck_ident_expr(ident_expr_t *expr);
 	value_stype_t typecheck_type_cast_expr(type_cast_expr_t *expr);
+	value_stype_t typecheck_type_expr(type_expr_t *expr);
 	value_stype_t typecheck_call_expr(call_expr_t *expr, bool mok = false);
 	value_stype_t typecheck_index_expr(index_expr_t *expr);
 	value_stype_t typecheck_compound_lit(compound_lit_t *expr);

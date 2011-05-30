@@ -1167,12 +1167,11 @@ void init_builtin_stypes()
 	builtin_stypes[BUILTIN_FLOAT32]           = new float_stype_t(32);
 	builtin_stypes[BUILTIN_FLOAT64]           = new float_stype_t(64);
 	builtin_stypes[BUILTIN_ABSTRACT_FLOAT]    = new float_stype_t(0, true);
-
 	builtin_stypes[BUILTIN_ABSTRACT_STRING]   = new string_stype_t;
-
 	builtin_stypes[BUILTIN_ABSTRACT_COMPOUND] = new compound_stype_t;
-
 	builtin_stypes[BUILTIN_ABSTRACT_MODULE]   = new module_stype_t;
+
+	builtin_stypes[BUILTIN_FUNC]              = new func_stype_t;
 
 	// named types
 	builtin_named_stypes[BUILTIN_VOID]    = new named_stype_t("void", builtin_stypes[BUILTIN_VOID]);
@@ -1460,6 +1459,14 @@ func_sdecl_t *new_func_sdecl(sdecl_tracker_t *dt, func_decl_t *decl)
 	return fd;
 }
 
+func_sdecl_t *new_builtin_func_sdecl(sdecl_tracker_t *dt, const char *name)
+{
+	func_sdecl_t *fd = new func_sdecl_t(name);
+	fd->stype = builtin_stypes[BUILTIN_FUNC];
+	dt->push_back(fd);
+	return fd;
+}
+
 import_sdecl_t *new_import_sdecl(sdecl_tracker_t *dt, import_spec_t *spec)
 {
 	import_sdecl_t *id = new import_sdecl_t(spec);
@@ -1560,10 +1567,14 @@ void fill_global_scope(scope_block_t *scope, sdecl_tracker_t *dt,
 	d["float"]   = d["float32"];
 	d["double"]  = d["float64"];
 
+	// constants
 	d["true"]    = new_const_bool_sdecl(dt, true);
 	d["false"]   = new_const_bool_sdecl(dt, false);
 	d["iota"]    = new_const_iota_sdecl(dt);
 	d["nil"]     = new_const_nil_sdecl(dt, tt);
+
+	// built-in functions
+	d["sizeof"]  = new_builtin_func_sdecl(dt, "sizeof");
 
 	unordered_map<std::string, sdecl_t*>::iterator it, end;
 	for (it = d.begin(), end = d.end(); it != end; ++it)
@@ -1878,6 +1889,24 @@ void pass1_t::pass(node_t *ast)
 // pass2_t
 //------------------------------------------------------------------------------
 
+void pass2_t::error_args_mismatch(call_expr_t *expr, size_t num)
+{
+	source_loc_range_t ranges[] = {
+		expr->expr->source_loc_range(),
+		{ expr->pos_lp, expr->pos_rp }
+	};
+
+	const char *what = "not enough";
+	if (expr->args.size() > num)
+		what = "too many";
+
+	message_t *m;
+	m = new_message(MESSAGE_ERROR,
+			ranges[0].beg, true, &ranges[1], 1,
+			"%s arguments in function call", what);
+	diag->report(m);
+}
+
 bool pass2_t::typegen_for_funcfields(stype_vector_t *sv, field_vector_t *fv)
 {
 	for (size_t i = 0, n = fv->size(); i < n; ++i) {
@@ -2189,6 +2218,47 @@ bool pass2_t::stmt_returns(node_t *stmt)
 	return false;
 }
 
+value_stype_t pass2_t::typecheck_builtin_call_expr(call_expr_t *expr,
+						   func_stype_t *fst)
+{
+	ident_expr_t *e = is_ident_expr(expr->expr);
+	CRAWL_QASSERT(e != 0);
+
+	if (e->sdecl->name == "sizeof") {
+		if (expr->args.size() != 1) {
+			expr->typeerror = true;
+			error_args_mismatch(expr, 1);
+			return value_stype_t();
+		}
+
+		stype_t *ty = 0;
+		if (expr->args[0]->type == node_t::TYPE_EXPR) {
+			value_stype_t vst;
+			vst = typecheck_type_expr((type_expr_t*)expr->args[0]);
+			ty = vst.stype;
+		} else {
+			value_stype_t vst;
+			vst = typecheck_expr(expr->args[0]);
+			// realize it on this stage, because there are no
+			// context anyway, we don't have to wait for anything
+			if (vst.stype)
+				realize_expr_type(expr->args[0], 0);
+			ty = vst.stype;
+		}
+
+		if (!ty) {
+			expr->typeerror = true;
+			return value_stype_t();
+		}
+
+		value_stype_t res;
+		res.stype = builtin_stypes[BUILTIN_ABSTRACT_INT];
+		res.value = value_t((unsigned int)ty->bits() / 8);
+		return res;
+	}
+	return value_stype_t();
+}
+
 value_stype_t pass2_t::typecheck_basic_lit_expr(basic_lit_expr_t *expr)
 {
 	value_stype_t out;
@@ -2404,6 +2474,13 @@ value_stype_t pass2_t::typecheck_type_cast_expr(type_cast_expr_t *expr)
 	return out;
 }
 
+value_stype_t pass2_t::typecheck_type_expr(type_expr_t *expr)
+{
+	value_stype_t out;
+	out.stype = typegen(expr->etype);
+	return out;
+}
+
 bool pass2_t::typecheck_call_expr_args(call_expr_t *expr, func_stype_t *ft)
 {
 	stype_vector_t args;
@@ -2443,20 +2520,7 @@ bool pass2_t::typecheck_call_expr_args(call_expr_t *expr, func_stype_t *ft)
 
 	if (!match) {
 		expr->typeerror = true;
-		source_loc_range_t ranges[] = {
-			expr->expr->source_loc_range(),
-			{ expr->pos_lp, expr->pos_rp }
-		};
-
-		const char *what = "not enough";
-		if (ft->args.size() < args_n)
-			what = "too many";
-
-		message_t *m;
-		m = new_message(MESSAGE_ERROR,
-				ranges[0].beg, true, &ranges[1], 1,
-				"%s arguments in function call", what);
-		diag->report(m);
+		error_args_mismatch(expr, ft->args.size());
 		return false;
 	}
 
@@ -2531,6 +2595,8 @@ value_stype_t pass2_t::typecheck_call_expr(call_expr_t *expr, bool mok)
 	}
 
 	func_stype_t *ft = (func_stype_t*)callee.stype->end_type();
+	if (IS_STYPE_BUILTIN(ft))
+		return typecheck_builtin_call_expr(expr, ft);
 
 	if (!typecheck_call_expr_args(expr, ft))
 		return value_stype_t();
@@ -2800,6 +2866,17 @@ value_stype_t pass2_t::typecheck_expr(node_t *expr)
 		type_cast_expr_t *e = (type_cast_expr_t*)expr;
 		e->vst = typecheck_type_cast_expr(e);
 		return e->vst;
+	}
+	case node_t::TYPE_EXPR:
+	{
+		type_expr_t *e = (type_expr_t*)expr;
+		source_loc_range_t range = e->etype->source_loc_range();
+		message_t *m;
+		m = new_message(MESSAGE_ERROR,
+				e->pos, true, &range, 1,
+				"type expression outside of a built-in function");
+		diag->report(m);
+		return value_stype_t();
 	}
 	case node_t::COMPOUND_LIT:
 	{

@@ -60,19 +60,19 @@ stmt_list(L) ::= stmt_list(L2) stmt(S). {
 %type s_stmt { node_t* }
 s_stmt(S) ::= .                                        { S = 0; }
 s_stmt(S) ::= expr(E).                                 { S = new expr_stmt_t(E); }
-s_stmt(S) ::= expr_list(L) ASSIGN(T)    cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) DECLARIZE(T) cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_DIVIDE(T)  cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_TIMES(T)   cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_MOD(T)     cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_SHIFTL(T)  cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_SHIFTR(T)  cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_AND(T)     cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_ANDNOT(T)  cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_PLUS(T)    cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_MINUS(T)   cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_OR(T)      cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
-s_stmt(S) ::= expr_list(L) A_XOR(T)     cexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) ASSIGN(T)    iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) DECLARIZE(T) iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_DIVIDE(T)  iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_TIMES(T)   iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_MOD(T)     iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_SHIFTL(T)  iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_SHIFTR(T)  iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_AND(T)     iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_ANDNOT(T)  iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_PLUS(T)    iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_MINUS(T)   iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_OR(T)      iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
+s_stmt(S) ::= expr_list(L) A_XOR(T)     iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
 s_stmt(S) ::= expr(E) INC(T).                          { S = new incdec_stmt_t(E, T); }
 s_stmt(S) ::= expr(E) DEC(T).                          { S = new incdec_stmt_t(E, T); }
 
@@ -90,7 +90,7 @@ stmt(S) ::= block_stmt(BS).                      { S = BS; }
 stmt(S) ::= BREAK(TOK).                          { S = new flow_stmt_t(TOK); }
 stmt(S) ::= CONTINUE(TOK).                       { S = new flow_stmt_t(TOK); }
 stmt(S) ::= FALLTHROUGH(TOK).                    { S = new flow_stmt_t(TOK); }
-stmt(S) ::= RETURN(TOK) cexpr_list(L) SEMICOLON. { S = new return_stmt_t(L, TOK); }
+stmt(S) ::= RETURN(TOK) iexpr_list(L) SEMICOLON. { S = new return_stmt_t(L, TOK); }
 stmt(S) ::= RETURN(TOK) SEMICOLON.               { S = new return_stmt_t(0, TOK); }
 
 stmt(S) ::= IF(TI) expr(E) block_stmt(BS). {
@@ -296,7 +296,7 @@ value_spec_list(L) ::= value_spec_list(L2) SEMICOLON value_spec(S). {
 value_spec(VS) ::= ident_list(IL) otype(OT). {
 	VS = new value_spec_t(IL, OT);
 }
-value_spec(VS) ::= ident_list(IL) otype(OT) ASSIGN(TOK) cexpr_list(EL). {
+value_spec(VS) ::= ident_list(IL) otype(OT) ASSIGN(TOK) iexpr_list(EL). {
 	VS = new value_spec_t(IL, OT, EL, TOK);
 }
 
@@ -431,7 +431,7 @@ pexpr(A) ::= pexpr(P) DOT(D) LPAREN(L) type(T) RPAREN(R). {
 pexpr(A) ::= pexpr(P) LPAREN(L) RPAREN(R).   { A = new call_expr_t(P, 0, L, R); }
 
 // call expr with non-empty expr list
-pexpr(A) ::= pexpr(P) LPAREN(L) cexpr_list(EL) RPAREN(R). {
+pexpr(A) ::= pexpr(P) LPAREN(L) iexpr_list(EL) RPAREN(R). {
 	A = new call_expr_t(P, EL, L, R);
 }
 
@@ -490,17 +490,29 @@ expr(E) ::= expr(L) OROR(T)   expr(R). { E = new binary_expr_t(L, R, T); }
 //------------------------------------------------------------------------------
 // Compound literal
 //
-// {cexpr, cexpr, cexpr}
-// {cexpr, cexpr, cexpr}.(type)
+// {iexpr, iexpr, iexpr}
+// {iexpr, iexpr, iexpr}.(type)
 //------------------------------------------------------------------------------
 
 %type compound_lit { node_t* }
-compound_lit(CL) ::= LCURLY(L) cexpr_list(CEL) RCURLY(R). {
+compound_lit(CL) ::= LCURLY(L) iexpr_list(CEL) RCURLY(R). {
 	CL = new compound_lit_t(CEL, 0, L, R);
 }
-compound_lit(CL) ::= LCURLY(L) cexpr_list(CEL) RCURLY DOT LPAREN type(T) RPAREN(R). {
+compound_lit(CL) ::= LCURLY(L) iexpr_list(CEL) RCURLY DOT LPAREN type(T) RPAREN(R). {
 	CL = new compound_lit_t(CEL, T, L, R);
 }
+
+
+
+
+//------------------------------------------------------------------------------
+// Type expression
+//
+// type [10]*int
+//------------------------------------------------------------------------------
+
+%type type_expr { node_t* }
+type_expr(TE) ::= TYPE(TOK) type(T). { TE = new type_expr_t(T, TOK); }
 
 
 
@@ -511,12 +523,13 @@ compound_lit(CL) ::= LCURLY(L) cexpr_list(CEL) RCURLY DOT LPAREN type(T) RPAREN(
 // expr, compound, expr
 //------------------------------------------------------------------------------
 
-%type cexpr_list { node_vector_t* }
-%type cexpr      { node_t* }
-cexpr(CE) ::= expr(E).                           { CE = E; }
-cexpr(CE) ::= compound_lit(CL).                  { CE = CL; }
-cexpr_list(L) ::= cexpr(E).                      { L = new node_vector_t(1, E); }
-cexpr_list(L) ::= cexpr_list(L2) COMMA cexpr(E). { L2->push_back(E); L = L2; }
+%type iexpr_list { node_vector_t* }
+%type iexpr      { node_t* }
+iexpr(CE) ::= expr(E).                           { CE = E; }
+iexpr(CE) ::= compound_lit(CL).                  { CE = CL; }
+iexpr(CE) ::= type_expr(TE).                     { CE = TE; }
+iexpr_list(L) ::= iexpr(E).                      { L = new node_vector_t(1, E); }
+iexpr_list(L) ::= iexpr_list(L2) COMMA iexpr(E). { L2->push_back(E); L = L2; }
 
 %type expr_list { node_vector_t* }
 expr_list(L) ::= expr(E).                     { L = new node_vector_t(1, E); }
