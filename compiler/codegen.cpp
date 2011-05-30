@@ -1145,20 +1145,38 @@ Value *llvm_backend_t::codegen_call_expr(call_expr_t *e)
 {
 	func_stype_t *fst = (func_stype_t*)e->expr->vst.stype->end_type();
 	Value *func = codegen_expr_addr(e->expr);
+
 	// hack: If it's a variable function pointer, dereference it.
 	// FIXME: maybe I should have a way to determine that some other way
 	if (isa<PointerType>(cast<PointerType>(func->getType())->getElementType()))
 		func = ir->CreateLoad(func);
 
 	std::vector<Value*> args;
-	args.reserve(e->args.size());
-	for (size_t i = 0, n = e->args.size(); i < n; ++i) {
-		node_t *a = e->args[i];
-		Value *v = codegen_expr_value(a);
+	std::vector<stype_t*> argtypes;
+	args.reserve(fst->args.size());
+	argtypes.reserve(fst->args.size());
+
+	// special case, function expects many arguments and call expr contains
+	// only one function call for arguments
+	if (fst->args.size() > e->args.size()) {
+		CRAWL_QASSERT(e->args.size() == 1);
+		codegen_MRV(&args, &argtypes, e->args[0]);
+	} else {
+		for (size_t i = 0, n = e->args.size(); i < n; ++i) {
+			args.push_back(codegen_expr_value(e->args[i]));
+			argtypes.push_back(e->args[i]->vst.stype);
+		}
+	}
+
+	// apply assignment if possible
+	for (size_t i = 0, n = args.size(); i < n; ++i) {
 		// if it's a varargs call, we can't figure out the type
-		if (i < fst->args.size())
-			v = codegen_assignment(v, a->vst.stype, fst->args[i]);
-		args.push_back(v);
+		// TODO: but we should probably apply type promotion
+		// here as C does
+		if (i < fst->args.size()) {
+			args[i] = codegen_assignment(args[i], argtypes[i],
+						     fst->args[i]);
+		}
 	}
 
 	return ir->CreateCall(func, args.begin(), args.end());

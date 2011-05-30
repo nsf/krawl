@@ -3007,14 +3007,37 @@ void pass2_t::typecheck_decl_stmt(decl_stmt_t *stmt)
 
 void pass2_t::typecheck_return_stmt(return_stmt_t *stmt)
 {
-	// TODO: allow special call expr with multiple return values case
+	stype_vector_t returns;
+	size_t returns_n = 0;
+
+	// special case, function expects many return values and return
+	// statement contains only one function call
+	if (cur_func_decl->n_return_values() > 1 && stmt->returns.size() == 1 &&
+	    is_call_expr(stmt->returns[0]))
+	{
+		call_expr_t *c = is_call_expr(stmt->returns[0]);
+		c->mexpected = cur_func_decl->n_return_values();
+		value_stype_t vst = typecheck_call_expr(c, true);
+		if (!vst.stype)
+			return;
+
+		c->vst = vst;
+
+		CRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
+		stype_vector_t *r = &((func_stype_t*)vst.stype)->results;
+		returns.assign(r->begin(), r->end());
+		returns_n = returns.size();
+	}
 
 	// For a return statement a number of return values should match the
 	// number in function type. If function has named return types, then
 	// zero value is also valid.
 
+	if (returns_n == 0)
+		returns_n = stmt->returns.size();
+
 	bool matches = false;
-	if (cur_func_decl->n_return_values() == (int)stmt->returns.size())
+	if (cur_func_decl->n_return_values() == (int)returns_n)
 		matches = true;
 	if (cur_func_decl->has_named_return_values() && (int)stmt->returns.empty())
 		matches = true;
@@ -3038,28 +3061,39 @@ void pass2_t::typecheck_return_stmt(return_stmt_t *stmt)
 	}
 
 	// now, the typecheck
-	stype_vector_t *rtypes = cur_func_decl->return_types();
-	for (size_t i = 0, n = stmt->returns.size(); i < n; ++i) {
-		value_stype_t vst = typecheck_expr(stmt->returns[i]);
-		if (!vst.stype)
-			continue;
+	if (returns.empty()) {
+		returns.reserve(stmt->returns.size());
+		for (size_t i = 0, n = stmt->returns.size(); i < n; ++i) {
+			value_stype_t rval = typecheck_expr(stmt->returns[i]);
+			if (!rval.stype)
+				return;
+			returns.push_back(rval.stype);
+		}
+	}
 
-		if (!assignable(vst.stype, rtypes->at(i))) {
-			source_loc_range_t range = stmt->returns[i]->source_loc_range();
+	stype_vector_t *rtypes = cur_func_decl->return_types();
+	for (size_t i = 0, n = returns.size(); i < n; ++i) {
+		if (!assignable(returns[i], rtypes->at(i))) {
+			size_t j = i;
+			if (j >= stmt->returns.size())
+				j = stmt->returns.size() - 1;
+
+			source_loc_range_t range = stmt->returns[j]->source_loc_range();
 			message_t *m;
 			m = new_message(MESSAGE_ERROR,
 					stmt->pos, true, &range, 1,
 					"cannot use type '%s' as type '%s' "
 					"in return statement",
-					vst.stype->to_string().c_str(),
+					returns[i]->to_string().c_str(),
 					rtypes->at(i)->to_string().c_str());
 			diag->report(m);
 			return;
 		}
 
-		realize_expr_type(stmt->returns[i], rtypes->at(i));
-		vst.stype = stmt->returns[i]->vst.stype;
 	}
+
+	for (size_t i = 0, n = stmt->returns.size(); i < n; ++i)
+		realize_expr_type(stmt->returns[i], rtypes->at(i));
 }
 
 void pass2_t::typecheck_compound_assign_stmt(assign_stmt_t *stmt)
