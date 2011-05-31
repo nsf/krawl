@@ -5,11 +5,17 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Path.h>
 #include <llvm/Support/Host.h>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
-#include "brawl.pb.h"
 #include "cityhash/city.h"
 
-using google::protobuf::io::FileOutputStream;
+struct module_cache_entry_t {
+	std::string filename;
+	uint64_t mtime;
+};
+
+struct module_cache_t {
+	std::string header;
+	std::vector<module_cache_entry_t> entries;
+};
 
 static std::string get_xdg_cache_dir()
 {
@@ -49,19 +55,24 @@ static bool is_valid_cache(const char *file, const char *header)
 	if (!f)
 		return false;
 
-	Brawl::CModuleCache mc;
-	mc.ParseFromFileDescriptor(fileno(f));
+	FILE_reader_t fr(f);
 
 	// oops, hash collision
-	if (mc.header() != header)
+	if (fr.read_string() != header) {
+		fclose(f);
 		return false;
-
-	for (size_t i = 0, n = mc.entry_size(); i < n; ++i) {
-		const Brawl::CModuleCache_Entry &e = mc.entry(i);
-		uint64_t now = mtime(e.filename().c_str());
-		if (now != e.mtime())
-			return false;
 	}
+
+	size_t entries_n = fr.read_varuint();
+	for (size_t i = 0, n = entries_n; i < n; ++i) {
+		std::string &filename = fr.read_string();
+		uint64_t now = mtime(filename.c_str());
+		if (now != fr.read_uint64()) {
+			fclose(f);
+			return false;
+		}
+	}
+	fclose(f);
 	return true;
 }
 
@@ -95,17 +106,16 @@ static void exec_and_capture_stdout(const char *cmd, std::vector<char> *out)
 	pclose(cc);
 }
 
-static void prepare_module_cache(Brawl::CModuleCache *mc, const char *header,
+static void prepare_module_cache(module_cache_t *mc, const char *header,
 				 llvm::SmallVector<llvm::StringRef, 20> &deps)
 {
-	mc->set_header(header);
+	mc->header = header;
 	for (size_t i = 0, n = deps.size(); i < n; ++i) {
 		if (deps[i].empty())
 			continue;
 		std::string dep = deps[i].str();
-		Brawl::CModuleCache_Entry *e = mc->add_entry();
-		e->set_filename(dep);
-		e->set_mtime(mtime(dep.c_str()));
+		module_cache_entry_t entry = {dep, mtime(dep.c_str())};
+		mc->entries.push_back(entry);
 	}
 }
 
@@ -129,13 +139,21 @@ static void generate_lib(const char *filename,
 	fclose(f);
 }
 
-static void write_cache(Brawl::CModuleCache *mc, const char *cachefile)
+static void write_cache(module_cache_t *mc, const char *cachefile)
 {
 	FILE *f = fopen(cachefile, "wb");
 	if (!f)
 		DIE("failed to open cache file for writing: %s", cachefile);
 
-	mc->SerializeToFileDescriptor(fileno(f));
+	FILE_writer_t fw(f);
+
+	fw.write_string(mc->header);
+	fw.write_varuint(mc->entries.size());
+	for (size_t i = 0, n = mc->entries.size(); i < n; ++i) {
+		fw.write_string(mc->entries[i].filename);
+		fw.write_uint64(mc->entries[i].mtime);
+	}
+
 	fclose(f);
 }
 
@@ -214,7 +232,7 @@ std::string update_c_module_hash(const char *header)
 	llvm::SmallVector<llvm::StringRef, 20> deps;
 	splitted.second.split(deps, "\n");
 
-	Brawl::CModuleCache mc;
+	module_cache_t mc;
 	prepare_module_cache(&mc, header, deps);
 
 	// prepare input for parser

@@ -1,8 +1,6 @@
 #include "crawlc.hpp"
-#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include "cityhash/city.h"
 
-using google::protobuf::io::FileInputStream;
 
 
 

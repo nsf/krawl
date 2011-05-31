@@ -1,10 +1,7 @@
 #include <getopt.h>
 #include <ctype.h>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include "crawlc.hpp"
 #include "cityhash/city.h"
-
-using google::protobuf::io::FileOutputStream;
 
 struct all_t {
 	// memory trackers for semantic declarations, types and other stuff
