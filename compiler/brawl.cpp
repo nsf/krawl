@@ -129,16 +129,6 @@ void FILE_writer_t::write_int32(int32_t n)   { WRITE_TYPE(int32_t);  }
 void FILE_writer_t::write_int64(int64_t n)   { WRITE_TYPE(int64_t);  }
 
 //------------------------------------------------------------------------------
-
-static void dump_to_cout(google::protobuf::Message *msg,
-			 CodedOutputStream *cout)
-{
-	int size = msg->ByteSize();
-	cout->WriteVarint32(size);
-	msg->SerializeWithCachedSizes(cout);
-}
-
-//------------------------------------------------------------------------------
 // Brawl semantic types
 //------------------------------------------------------------------------------
 
@@ -153,62 +143,49 @@ void brawl_stypes_t::clear()
 	stypes.clear();
 	map.clear();
 	index = 0;
-
-	pb_typeheader.Clear();
-	pb_namedtype.Clear();
-	pb_pointertype.Clear();
-	pb_arraytype.Clear();
-	pb_structtype.Clear();
-	pb_functype.Clear();
 }
 
-void brawl_stypes_t::serialize_named(CodedOutputStream *cout, named_stype_t *t)
+void brawl_stypes_t::serialize_named(FILE_writer_t *cout, named_stype_t *t)
 {
-	pb_namedtype.set_name(t->name);
-	pb_namedtype.set_real(stype_index(t->real));
-	dump_to_cout(&pb_namedtype, cout);
+	cout->write_string(t->name);
+	cout->write_int32(stype_index(t->real));
 }
 
-void brawl_stypes_t::serialize_pointer(CodedOutputStream *cout, pointer_stype_t *t)
+void brawl_stypes_t::serialize_pointer(FILE_writer_t *cout, pointer_stype_t *t)
 {
-	pb_pointertype.set_points_to(stype_index(t->points_to));
-	dump_to_cout(&pb_pointertype, cout);
+	cout->write_int32(stype_index(t->points_to));
 }
 
-void brawl_stypes_t::serialize_array(CodedOutputStream *cout, array_stype_t *t)
+void brawl_stypes_t::serialize_array(FILE_writer_t *cout, array_stype_t *t)
 {
-	pb_arraytype.set_size(t->size);
-	pb_arraytype.set_elem(stype_index(t->elem));
-	dump_to_cout(&pb_arraytype, cout);
+	cout->write_varuint(t->size);
+	cout->write_int32(stype_index(t->elem));
 }
 
-void brawl_stypes_t::serialize_struct(CodedOutputStream *cout, struct_stype_t *t)
+void brawl_stypes_t::serialize_struct(FILE_writer_t *cout, struct_stype_t *t)
 {
-	pb_structtype.set_alignment(t->alignment);
-	pb_structtype.set_size(t->size);
-	pb_structtype.clear_field();
+	cout->write_varuint(t->alignment);
+	cout->write_varuint(t->size);
+	cout->write_varuint(t->fields.size());
 	for (size_t i = 0; i < t->fields.size(); ++i) {
-		Brawl::StructType_Field *msgf = pb_structtype.add_field();
 		struct_field_t *f = &t->fields[i];
-		msgf->set_name(f->name);
-		msgf->set_type(stype_index(f->type));
-		msgf->set_padding(f->padding);
+		cout->write_string(f->name);
+		cout->write_int32(stype_index(f->type));
+		cout->write_varuint(f->padding);
 	}
-
-	dump_to_cout(&pb_structtype, cout);
 }
 
-void brawl_stypes_t::serialize_func(CodedOutputStream *cout, func_stype_t *t)
+void brawl_stypes_t::serialize_func(FILE_writer_t *cout, func_stype_t *t)
 {
-	pb_functype.set_varargs(t->varargs);
-	pb_functype.clear_arg();
-	for (size_t i = 0; i < t->args.size(); ++i)
-		pb_functype.add_arg(stype_index(t->args[i]));
-	pb_functype.clear_result();
-	for (size_t i = 0; i < t->results.size(); ++i)
-		pb_functype.add_result(stype_index(t->results[i]));
+	cout->write_uint8(t->varargs ? 1 : 0);
 
-	dump_to_cout(&pb_functype, cout);
+	cout->write_varuint(t->args.size());
+	for (size_t i = 0; i < t->args.size(); ++i)
+		cout->write_int32(stype_index(t->args[i]));
+
+	cout->write_varuint(t->results.size());
+	for (size_t i = 0; i < t->results.size(); ++i)
+		cout->write_int32(stype_index(t->results[i]));
 }
 
 struct stype_serializer_t : stype_visitor_t {
@@ -297,16 +274,14 @@ stype_t *brawl_stypes_t::index_stype(int32_t idx)
 	return stypes[idx];
 }
 
-void brawl_stypes_t::save(CodedOutputStream *cout)
+void brawl_stypes_t::save(FILE_writer_t *cout)
 {
-	cout->WriteLittleEndian32(stypes.size());
+	cout->write_uint32(stypes.size());
 	for (size_t i = 0, n = stypes.size(); i < n; ++i) {
 		stype_t *t = stypes[i];
 
 		// write type
-		pb_typeheader.set_type(t->type);
-		dump_to_cout(&pb_typeheader, cout);
-
+		cout->write_uint16(t->type);
 		if (IS_STYPE_NAMED(t))
 			serialize_named(cout, (named_stype_t*)t);
 		else if (IS_STYPE_POINTER(t))
@@ -333,11 +308,12 @@ void brawl_stypes_t::save(CodedOutputStream *cout)
 	if (!result) DIE("failed to parse " #msg);			\
 	cin->PopLimit(l)
 
-void brawl_stypes_t::deserialize_named(CodedInputStream *cin)
+void brawl_stypes_t::deserialize_named(FILE_reader_t *cin)
 {
-	READ_MSG(pb_namedtype);
+	std::string &name = cin->read_string();
+	int32_t real = cin->read_int32();
 
-	std::string fullname = prefix + "." + pb_namedtype.name();
+	std::string fullname = prefix + "." + name;
 	unordered_map<std::string, named_stype_t*>::iterator it;
 	it = ctx->named_map.find(fullname);
 
@@ -346,8 +322,8 @@ void brawl_stypes_t::deserialize_named(CodedInputStream *cin)
 		t = it->second;
 	} else {
 		t = new named_stype_t;
-		t->name = pb_namedtype.name();
-		t->real = (stype_t*)pb_namedtype.real();
+		t->name = name;
+		t->real = (stype_t*)real;
 		ctx->named_map[fullname] = t;
 		ctx->ttracker->push_back(t);
 	}
@@ -358,11 +334,10 @@ void brawl_stypes_t::deserialize_named(CodedInputStream *cin)
 	*/
 }
 
-void brawl_stypes_t::deserialize_pointer(CodedInputStream *cin)
+void brawl_stypes_t::deserialize_pointer(FILE_reader_t *cin)
 {
-	READ_MSG(pb_pointertype);
 	pointer_stype_t *t = new pointer_stype_t;
-	t->points_to = (stype_t*)pb_pointertype.points_to();
+	t->points_to = (stype_t*)cin->read_int32();
 	ctx->ttracker->push_back(t);
 	stypes.push_back(t);
 	/*
@@ -370,12 +345,11 @@ void brawl_stypes_t::deserialize_pointer(CodedInputStream *cin)
 	*/
 }
 
-void brawl_stypes_t::deserialize_array(CodedInputStream *cin)
+void brawl_stypes_t::deserialize_array(FILE_reader_t *cin)
 {
-	READ_MSG(pb_arraytype);
 	array_stype_t *t = new array_stype_t;
-	t->size = pb_arraytype.size();
-	t->elem = (stype_t*)pb_arraytype.elem();
+	t->size = cin->read_varuint();
+	t->elem = (stype_t*)cin->read_int32();
 	ctx->ttracker->push_back(t);
 	stypes.push_back(t);
 	/*
@@ -384,16 +358,20 @@ void brawl_stypes_t::deserialize_array(CodedInputStream *cin)
 	*/
 }
 
-void brawl_stypes_t::deserialize_struct(CodedInputStream *cin)
+void brawl_stypes_t::deserialize_struct(FILE_reader_t *cin)
 {
-	READ_MSG(pb_structtype);
 	struct_stype_t *t = new struct_stype_t;
-	t->alignment = pb_structtype.alignment();
-	t->size = pb_structtype.size();
-	t->fields.reserve(pb_structtype.field_size());
-	for (size_t i = 0, n = pb_structtype.field_size(); i < n; ++i) {
-		const Brawl::StructType_Field &f = pb_structtype.field(i);
-		struct_field_t field = {(stype_t*)f.type(), f.name(), f.padding()};
+	t->alignment = cin->read_varuint();
+	t->size = cin->read_varuint();
+
+	size_t fields_n = cin->read_varuint();
+	t->fields.reserve(fields_n);
+	for (size_t i = 0, n = fields_n; i < n; ++i) {
+		std::string &name = cin->read_string();
+		int32_t type = cin->read_int32();
+		uint64_t padding = cin->read_varuint();
+
+		struct_field_t field = {(stype_t*)type, name, padding};
 		t->fields.push_back(field);
 	}
 	ctx->ttracker->push_back(t);
@@ -409,17 +387,20 @@ void brawl_stypes_t::deserialize_struct(CodedInputStream *cin)
 	*/
 }
 
-void brawl_stypes_t::deserialize_func(CodedInputStream *cin)
+void brawl_stypes_t::deserialize_func(FILE_reader_t *cin)
 {
-	READ_MSG(pb_functype);
 	func_stype_t *t = new func_stype_t;
-	t->varargs = pb_functype.varargs();
-	t->args.reserve(pb_functype.arg_size());
-	t->results.reserve(pb_functype.result_size());
-	for (size_t i = 0, n = pb_functype.arg_size(); i < n; ++i)
-		t->args.push_back((stype_t*)pb_functype.arg(i));
-	for (size_t i = 0, n = pb_functype.result_size(); i < n; ++i)
-		t->results.push_back((stype_t*)pb_functype.result(i));
+	t->varargs = cin->read_uint8() == 1 ? true : false;
+
+	size_t args_n = cin->read_varuint();
+	t->args.reserve(args_n);
+	for (size_t i = 0, n = args_n; i < n; ++i)
+		t->args.push_back((stype_t*)cin->read_int32());
+
+	size_t results_n = cin->read_varuint();
+	t->results.reserve(results_n);
+	for (size_t i = 0, n = results_n; i < n; ++i)
+		t->results.push_back((stype_t*)cin->read_int32());
 	ctx->ttracker->push_back(t);
 	stypes.push_back(t);
 	/*
@@ -432,26 +413,26 @@ void brawl_stypes_t::deserialize_func(CodedInputStream *cin)
 	*/
 }
 
-void brawl_stypes_t::deserialize_types(CodedInputStream *cin, size_t n)
+void brawl_stypes_t::deserialize_types(FILE_reader_t *cin, size_t n)
 {
 	for (size_t i = 0; i < n; ++i) {
-		READ_MSG(pb_typeheader);
+		uint16_t type = cin->read_uint16();
 		//printf("%d-------------------------------------\n", i);
 
-		if (pb_typeheader.type() & STYPE_NAMED)
+		if (type & STYPE_NAMED)
 			deserialize_named(cin);
-		else if (pb_typeheader.type() & STYPE_POINTER)
+		else if (type & STYPE_POINTER)
 			deserialize_pointer(cin);
-		else if (pb_typeheader.type() & STYPE_ARRAY)
+		else if (type & STYPE_ARRAY)
 			deserialize_array(cin);
-		else if (pb_typeheader.type() & STYPE_STRUCT)
+		else if (type & STYPE_STRUCT)
 			deserialize_struct(cin);
-		else if (pb_typeheader.type() & STYPE_FUNC)
+		else if (type & STYPE_FUNC)
 			deserialize_func(cin);
 		else
 			CRAWL_QASSERT(!"bad type");
 
-		stypes.back()->type = pb_typeheader.type();
+		stypes.back()->type = type;
 	}
 }
 
@@ -488,12 +469,12 @@ void brawl_stypes_t::restore_pointers()
 	}
 }
 
-void brawl_stypes_t::load(CodedInputStream *cin)
+void brawl_stypes_t::load(FILE_reader_t *cin)
 {
 	CRAWL_QASSERT(ctx != 0);
 	clear();
-	uint32_t num;
-	cin->ReadLittleEndian32(&num);
+
+	uint32_t num = cin->read_uint32();
 	deserialize_types(cin, num);
 	restore_pointers();
 }
@@ -511,7 +492,6 @@ void brawl_sdecls_t::clear()
 {
 	btypes.clear();
 	sdecls.clear();
-	pb_decl.Clear();
 }
 
 void brawl_sdecls_t::queue_for_serialization(sdecl_t *d)
@@ -519,9 +499,9 @@ void brawl_sdecls_t::queue_for_serialization(sdecl_t *d)
 	sdecls.push_back(d);
 }
 
-void brawl_sdecls_t::save(CodedOutputStream *cout)
+void brawl_sdecls_t::save(FILE_writer_t *cout)
 {
-	cout->WriteLittleEndian32(sdecls.size());
+	cout->write_uint32(sdecls.size());
 	for (size_t i = 0, n = sdecls.size(); i < n; ++i) {
 		sdecl_t *d = sdecls[i];
 
@@ -529,35 +509,36 @@ void brawl_sdecls_t::save(CodedOutputStream *cout)
 		if (d->type == SDECL_IMPORT)
 			continue;
 
-		pb_decl.set_decltype(d->type);
-		pb_decl.set_name(d->name.c_str());
-		pb_decl.set_type(btypes.queue_for_serialization(d->stype));
+		cout->write_uint8(d->type);
+		cout->write_string(d->name);
+		cout->write_int32(btypes.queue_for_serialization(d->stype));
 		if (d->type == SDECL_CONST) {
 			const_sdecl_t *cd = (const_sdecl_t*)d;
-			pb_decl.set_valuetype(cd->value.type);
-			pb_decl.set_value(cd->value.to_string());
+			cout->write_uint8(cd->value.type);
+			cout->write_string(cd->value.to_string());
 		}
-		dump_to_cout(&pb_decl, cout);
-		pb_decl.Clear();
 	}
 
 	btypes.save(cout);
 	clear();
 }
 
-void brawl_sdecls_t::deserialize_decls(CodedInputStream *cin, size_t n)
+void brawl_sdecls_t::deserialize_decls(FILE_reader_t *cin, size_t n)
 {
 	for (size_t i = 0; i < n; ++i) {
-		READ_MSG(pb_decl);
-		sdecl_t *d = new_sdecl(ctx->dtracker,
-				       pb_decl.name().c_str(),
-				       (sdecl_type_t)pb_decl.decltype());
-		d->stype = (stype_t*)pb_decl.type();
-		if (pb_decl.has_value()) {
-			CRAWL_QASSERT(d->type == SDECL_CONST);
+		uint8_t dtype = cin->read_uint8();
+		std::string &name = cin->read_string();
+		int32_t type = cin->read_int32();
+
+		sdecl_t *d = new_sdecl(ctx->dtracker, name.c_str(),
+				       (sdecl_type_t)dtype);
+		d->stype = (stype_t*)type;
+		if (dtype == SDECL_CONST) {
+			uint8_t vtype = cin->read_uint8();
+			std::string &value = cin->read_string();
+
 			const_sdecl_t *cd = (const_sdecl_t*)d;
-			cd->value = value_t(pb_decl.value().c_str(),
-					    (value_type_t)pb_decl.valuetype());
+			cd->value = value_t(value.c_str(), (value_type_t)vtype);
 		}
 		sdecls.push_back(d);
 	}
@@ -569,12 +550,11 @@ void brawl_sdecls_t::restore_pointers()
 		sdecls[i]->stype = btypes.index_stype(((int64_t)sdecls[i]->stype));
 }
 
-void brawl_sdecls_t::load(CodedInputStream *cin)
+void brawl_sdecls_t::load(FILE_reader_t *cin)
 {
 	CRAWL_QASSERT(ctx != 0);
 	clear();
-	uint32_t num;
-	cin->ReadLittleEndian32(&num);
+	uint32_t num = cin->read_uint32();
 	deserialize_decls(cin, num);
 	btypes.load(cin);
 	restore_pointers();
@@ -595,25 +575,21 @@ void brawl_module_t::clear()
 	prefix.clear();
 	package.clear();
 	decls.clear();
-
-	pb_module.Clear();
 }
 
-void brawl_module_t::save(CodedOutputStream *cout)
+void brawl_module_t::save(FILE_writer_t *cout)
 {
-	pb_module.set_prefix(prefix);
-	pb_module.set_package(package);
-	dump_to_cout(&pb_module, cout);
+	cout->write_string(prefix);
+	cout->write_string(package);
 	bdecls.save(cout);
 	clear();
 }
 
-void brawl_module_t::load(CodedInputStream *cin)
+void brawl_module_t::load(FILE_reader_t *cin)
 {
 	clear();
-	READ_MSG(pb_module);
-	prefix = bdecls.btypes.prefix = pb_module.prefix();
-	package = pb_module.package();
+	prefix = bdecls.btypes.prefix = cin->read_string();
+	package = cin->read_string();
 	bdecls.load(cin);
 	for (size_t i = 0, n = bdecls.sdecls.size(); i < n; ++i) {
 		sdecl_t *d = bdecls.sdecls[i];

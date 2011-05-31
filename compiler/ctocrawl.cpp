@@ -123,8 +123,7 @@ static void generate_lib(const char *filename,
 		exit(1);
 	}
 	{
-		FileOutputStream fout(fileno(f));
-		CodedOutputStream cout(&fout);
+		FILE_writer_t cout(f);
 		module.save(&cout);
 	}
 	fclose(f);

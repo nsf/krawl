@@ -1365,8 +1365,7 @@ void import_sdecl_t::load(brawl_context_t *ctx)
 		return;
 
 	brawl_module_t bmodule(ctx);
-	FileInputStream fin(fileno(f));
-	CodedInputStream cin(&fin);
+	FILE_reader_t cin(f);
 	bmodule.load(&cin);
 	fclose(f);
 

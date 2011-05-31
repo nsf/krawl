@@ -15,10 +15,7 @@
 #include <vector>
 #include "config.hpp"
 #include "tokens.hpp"
-#include "brawl.pb.h"
 
-using google::protobuf::io::CodedInputStream;
-using google::protobuf::io::CodedOutputStream;
 using std::tr1::unordered_map;
 using std::tr1::unordered_set;
 using std::tr1::hash;
@@ -1857,13 +1854,6 @@ struct brawl_stypes_t {
 	stype_map_t map;
 	int32_t index;
 
-	Brawl::TypeHeader pb_typeheader;
-	Brawl::NamedType pb_namedtype;
-	Brawl::PointerType pb_pointertype;
-	Brawl::ArrayType pb_arraytype;
-	Brawl::StructType pb_structtype;
-	Brawl::FuncType pb_functype;
-
 	brawl_stypes_t(brawl_context_t *ctx);
 	void clear();
 
@@ -1871,23 +1861,23 @@ struct brawl_stypes_t {
 	int32_t builtin_stype_index(stype_t *t);
 	stype_t *index_stype(int32_t idx);
 
-	void serialize_named(CodedOutputStream *cout, named_stype_t *t);
-	void serialize_pointer(CodedOutputStream *cout, pointer_stype_t *t);
-	void serialize_array(CodedOutputStream *cout, array_stype_t *t);
-	void serialize_struct(CodedOutputStream *cout, struct_stype_t *t);
-	void serialize_func(CodedOutputStream *cout, func_stype_t *t);
+	void serialize_named(FILE_writer_t *cout, named_stype_t *t);
+	void serialize_pointer(FILE_writer_t *cout, pointer_stype_t *t);
+	void serialize_array(FILE_writer_t *cout, array_stype_t *t);
+	void serialize_struct(FILE_writer_t *cout, struct_stype_t *t);
+	void serialize_func(FILE_writer_t *cout, func_stype_t *t);
 
-	void deserialize_named(CodedInputStream *cin);
-	void deserialize_pointer(CodedInputStream *cin);
-	void deserialize_array(CodedInputStream *cin);
-	void deserialize_struct(CodedInputStream *cin);
-	void deserialize_func(CodedInputStream *cin);
-	void deserialize_types(CodedInputStream *cin, size_t n);
+	void deserialize_named(FILE_reader_t *cin);
+	void deserialize_pointer(FILE_reader_t *cin);
+	void deserialize_array(FILE_reader_t *cin);
+	void deserialize_struct(FILE_reader_t *cin);
+	void deserialize_func(FILE_reader_t *cin);
+	void deserialize_types(FILE_reader_t *cin, size_t n);
 	void restore_pointers();
 
 	int32_t queue_for_serialization(stype_t *t);
-	void save(CodedOutputStream *cout);
-	void load(CodedInputStream *cin);
+	void save(FILE_writer_t *cout);
+	void load(FILE_reader_t *cin);
 };
 
 //------------------------------------------------------------------------------
@@ -1899,17 +1889,16 @@ struct brawl_sdecls_t {
 	brawl_stypes_t btypes;
 
 	std::vector<sdecl_t*> sdecls;
-	Brawl::Decl pb_decl;
 
 	brawl_sdecls_t(brawl_context_t *ctx);
 	void clear();
 
-	void deserialize_decls(CodedInputStream *cin, size_t n);
+	void deserialize_decls(FILE_reader_t *cin, size_t n);
 	void restore_pointers();
 
 	void queue_for_serialization(sdecl_t *d);
-	void save(CodedOutputStream *cout);
-	void load(CodedInputStream *cin);
+	void save(FILE_writer_t *cout);
+	void load(FILE_reader_t *cin);
 };
 
 //------------------------------------------------------------------------------
@@ -1922,7 +1911,6 @@ struct brawl_module_t {
 	std::string prefix;
 	std::string package;
 	unordered_map<std::string, sdecl_t*> decls;
-	Brawl::Module pb_module;
 
 	brawl_module_t(brawl_context_t *ctx);
 	void clear();
@@ -1930,8 +1918,8 @@ struct brawl_module_t {
 	void queue_for_serialization(scope_block_t *pkgscope,
 				     std::vector<const char*> *declnames,
 				     const char *prefix, const char *package);
-	void save(CodedOutputStream *cout);
-	void load(CodedInputStream *cin);
+	void save(FILE_writer_t *cout);
+	void load(FILE_reader_t *cin);
 };
 
 //------------------------------------------------------------------------------
