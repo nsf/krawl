@@ -63,8 +63,6 @@ struct options_t {
 	const char *hash_uid;
 	std::string package;
 	bool print_ast;
-	bool print_c;
-	const char *compiler;
 	const char *out_name;
 	std::vector<const char*> libs;
 	std::vector<const char*> files;
@@ -88,11 +86,9 @@ static void print_help_and_exit()
 "    --hash-uid=<string>  specify unique hash-based prefix id for symbols\n"
 "    -P, --package=<name> specify package name\n"
 "    --ast                print AST and exit (output is in the yaml format)\n"
-"    -p                   print generated C code and exit\n"
 "    -o <output>          specify output destination\n"
-"    -C <compiler>        specify compiler (gcc or clang, default is clang)\n"
 "    -l <lib>             specify a library name to pass to a linker\n"
-"    --dump               dump LLVM assembly during compilation\n"
+"    --dump               dump LLVM assembly to stdout during compilation\n"
 );
 	exit(0);
 }
@@ -124,13 +120,11 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 	opts->uid = 0;
 	opts->hash_uid = 0;
 	opts->print_ast = false;
-	opts->print_c = false;
-	opts->compiler = "clang";
 	opts->out_name = "crl.out";
 	opts->dump = false;
 
 	int c;
-	while ((c = getopt_long(argc, argv, "vhpo:C:l:P:", longopts, 0)) != -1) {
+	while ((c = getopt_long(argc, argv, "vho:l:P:", longopts, 0)) != -1) {
 		switch (c) {
 		case 'v':
 			print_version_and_exit();
@@ -149,12 +143,6 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 			break;
 		case 'a':
 			opts->print_ast = true;
-			break;
-		case 'p':
-			opts->print_c = true;
-			break;
-		case 'C':
-			opts->compiler = optarg;
 			break;
 		case 'o':
 			opts->out_name = optarg;
