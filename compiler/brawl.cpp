@@ -16,7 +16,7 @@ FILE_reader_t::FILE_reader_t(FILE *f): file(f)
 {
 }
 
-uint64_t FILE_reader_t::read_varint()
+uint64_t FILE_reader_t::read_varuint()
 {
 	uint8_t n = read_uint8();
 	if (n & VARINT_BIT) {
@@ -37,7 +37,7 @@ uint64_t FILE_reader_t::read_varint()
 
 std::string &FILE_reader_t::read_string()
 {
-	uint64_t len = read_varint();
+	uint64_t len = read_varuint();
 	if (!len) {
 		strbuf = "";
 		return strbuf;
@@ -76,7 +76,7 @@ FILE_writer_t::FILE_writer_t(FILE *f): file(f)
 {
 }
 
-void FILE_writer_t::write_varint(uint64_t n)
+void FILE_writer_t::write_varuint(uint64_t n)
 {
 	if (n < 128) {
 		write_uint8(n);
@@ -101,7 +101,7 @@ void FILE_writer_t::write_string(const char *str)
 
 void FILE_writer_t::write_string(const char *str, size_t len)
 {
-	write_varint(len);
+	write_varuint(len);
 	size_t written = fwrite(str, 1, len, file);
 	CRAWL_ASSERT(written == len,
 		     "failed to write binary data in FILE_writer_t");

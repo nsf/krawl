@@ -1788,7 +1788,7 @@ struct FILE_reader_t {
 
 	FILE_reader_t(FILE *f);
 
-	uint64_t     read_varint();
+	uint64_t     read_varuint();
 	uint8_t      read_uint8();
 	uint16_t     read_uint16();
 	uint32_t     read_uint32();
@@ -1805,7 +1805,7 @@ struct FILE_writer_t {
 
 	FILE_writer_t(FILE *f);
 
-	void write_varint(uint64_t n);
+	void write_varuint(uint64_t n);
 	void write_uint8(uint8_t n);
 	void write_uint16(uint16_t n);
 	void write_uint32(uint32_t n);
