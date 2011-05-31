@@ -2222,31 +2222,14 @@ value_stype_t pass2_t::typecheck_builtin_call_expr(call_expr_t *expr,
 	CRAWL_QASSERT(e != 0);
 
 	if (e->sdecl->name == "sizeof") {
-		if (expr->args.size() != 1) {
-			expr->typeerror = true;
-			error_args_mismatch(expr, 1);
-			return value_stype_t();
-		}
+		stype_t *ftargs[] = {
+			builtin_stypes[BUILTIN_VOID]
+		};
 
-		stype_t *ty = 0;
-		if (expr->args[0]->type == node_t::TYPE_EXPR) {
-			value_stype_t vst;
-			vst = typecheck_type_expr((type_expr_t*)expr->args[0]);
-			ty = vst.stype;
-		} else {
-			value_stype_t vst;
-			vst = typecheck_expr(expr->args[0]);
-			// realize it on this stage, because there are no
-			// context anyway, we don't have to wait for anything
-			if (vst.stype)
-				realize_expr_type(expr->args[0], 0);
-			ty = vst.stype;
-		}
-
-		if (!ty) {
-			expr->typeerror = true;
+		if (!typecheck_call_expr_args(expr, ftargs, 1, false))
 			return value_stype_t();
-		}
+
+		stype_t *ty = expr->args[0]->vst.stype;
 
 		value_stype_t res;
 		res.stype = builtin_stypes[BUILTIN_ABSTRACT_INT];
@@ -2475,21 +2458,27 @@ value_stype_t pass2_t::typecheck_type_expr(type_expr_t *expr)
 {
 	value_stype_t out;
 	out.stype = typegen(expr->etype);
+
+	// doing it here manually, because typecheck_expr denies type
+	// expressions
+	expr->vst = out;
 	return out;
 }
 
-bool pass2_t::typecheck_call_expr_args(call_expr_t *expr, func_stype_t *ft)
+bool pass2_t::typecheck_call_expr_args(call_expr_t *expr,
+				       stype_t **ftargs, size_t ftargs_n,
+				       bool varargs)
 {
 	stype_vector_t args;
 	size_t args_n = 0;
 
 	// special case, function expects many arguments and call expr contains
 	// only one function call for arguments
-	if (ft->args.size() > 1 && expr->args.size() == 1 &&
+	if (ftargs_n > 1 && expr->args.size() == 1 &&
 	    is_call_expr(expr->args[0]))
 	{
 		call_expr_t *c = is_call_expr(expr->args[0]);
-		c->mexpected = ft->args.size();
+		c->mexpected = ftargs_n;
 		value_stype_t vst = typecheck_call_expr(c, true);
 		if (!vst.stype) {
 			expr->typeerror = true;
@@ -2510,21 +2499,29 @@ bool pass2_t::typecheck_call_expr_args(call_expr_t *expr, func_stype_t *ft)
 
 	// check arguments size match
 	bool match;
-	if (ft->varargs)
-		match = ft->args.size() <= args_n;
+	if (varargs)
+		match = ftargs_n <= args_n;
 	else
-		match = ft->args.size() == args_n;
+		match = ftargs_n == args_n;
 
 	if (!match) {
 		expr->typeerror = true;
-		error_args_mismatch(expr, ft->args.size());
+		error_args_mismatch(expr, ftargs_n);
 		return false;
 	}
 
 	if (args.empty()) {
 		args.reserve(expr->args.size());
 		for (size_t i = 0, n = expr->args.size(); i < n; ++i) {
-			value_stype_t cargvt = typecheck_expr(expr->args[i]);
+			value_stype_t cargvt;
+			if (i < ftargs_n &&
+			    ftargs[i] == builtin_stypes[BUILTIN_VOID] &&
+			    expr->args[i]->type == node_t::TYPE_EXPR)
+			{
+				type_expr_t *te = (type_expr_t*)expr->args[i];
+				cargvt = typecheck_type_expr(te);
+			} else
+				cargvt = typecheck_expr(expr->args[i]);
 			if (!cargvt.stype) {
 				expr->typeerror = true;
 				return false;
@@ -2535,8 +2532,13 @@ bool pass2_t::typecheck_call_expr_args(call_expr_t *expr, func_stype_t *ft)
 	}
 
 	// check argument types
-	for (size_t i = 0, n = ft->args.size(); i < n; ++i) {
-		stype_t *fargt = ft->args[i];
+	for (size_t i = 0, n = ftargs_n; i < n; ++i) {
+		stype_t *fargt = ftargs[i];
+
+		// skip this special case, it is used for allowing any type
+		// (e.g. type expressions)
+		if (fargt == builtin_stypes[BUILTIN_VOID])
+			continue;
 
 		// check for type compatibility
 		if (!assignable(args[i], fargt)) {
@@ -2595,8 +2597,12 @@ value_stype_t pass2_t::typecheck_call_expr(call_expr_t *expr, bool mok)
 	if (IS_STYPE_BUILTIN(ft))
 		return typecheck_builtin_call_expr(expr, ft);
 
-	if (!typecheck_call_expr_args(expr, ft))
+	if (!typecheck_call_expr_args(expr,
+				      &ft->args[0], ft->args.size(),
+				      ft->varargs))
+	{
 		return value_stype_t();
+	}
 
 	// if multiple return values are not allowed, issue an error
 	if (!mok && ft->results.size() > 1) {

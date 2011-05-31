@@ -1686,7 +1686,13 @@ struct pass2_t {
 
 	bool stmt_returns(node_t *stmt);
 
-	bool typecheck_call_expr_args(call_expr_t *expr, func_stype_t *ft);
+	// use builtin_stypes[BUILTIN_VOID] if you need to allow any type as an
+	// argument, it is useful for things like 'sizeof', where argument is a
+	// type expression
+	bool typecheck_call_expr_args(call_expr_t *expr,
+				      stype_t **args, size_t args_n,
+				      bool varargs);
+
 	stype_t *typecheck_var_init(node_t *init, int index);
 	value_stype_t typecheck_builtin_call_expr(call_expr_t *expr,
 						  func_stype_t *fst);
