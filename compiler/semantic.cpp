@@ -215,7 +215,7 @@ bool pointer_stype_t::points_to_void()
 //------------------------------------------------------------------------------
 
 func_stype_t::func_stype_t():
-	stype_t(STYPE_FUNC)
+	stype_t(STYPE_FUNC), varargs(false)
 {
 }
 
@@ -1169,6 +1169,8 @@ void init_builtin_stypes()
 	builtin_stypes[BUILTIN_ABSTRACT_COMPOUND] = new compound_stype_t;
 	builtin_stypes[BUILTIN_ABSTRACT_MODULE]   = new module_stype_t;
 
+	builtin_stypes[BUILTIN_VA_LIST]           = new pointer_stype_t(builtin_stypes[BUILTIN_VOID]);
+
 	builtin_stypes[BUILTIN_FUNC]              = new func_stype_t;
 
 	// named types
@@ -1186,6 +1188,10 @@ void init_builtin_stypes()
 
 	builtin_named_stypes[BUILTIN_FLOAT32] = new named_stype_t("float32", builtin_stypes[BUILTIN_FLOAT32]);
 	builtin_named_stypes[BUILTIN_FLOAT64] = new named_stype_t("float64", builtin_stypes[BUILTIN_FLOAT64]);
+
+	builtin_named_stypes[BUILTIN_VA_LIST] = new named_stype_t("va_list", builtin_stypes[BUILTIN_VA_LIST]);
+
+	builtin_stypes[BUILTIN_VA_LIST_PTR]   = new pointer_stype_t(builtin_named_stypes[BUILTIN_VA_LIST]);
 
 	for (size_t i = 0, n = BUILTIN_N; i < n; ++i) {
 		if (builtin_stypes[i])
@@ -1556,6 +1562,7 @@ void fill_global_scope(scope_block_t *scope, sdecl_tracker_t *dt,
 	d["uint64"]  = new_type_sdecl(dt, 0, builtin_named_stypes[BUILTIN_UINT64]);
 	d["float32"] = new_type_sdecl(dt, 0, builtin_named_stypes[BUILTIN_FLOAT32]);
 	d["float64"] = new_type_sdecl(dt, 0, builtin_named_stypes[BUILTIN_FLOAT64]);
+	d["va_list"] = new_type_sdecl(dt, 0, builtin_named_stypes[BUILTIN_VA_LIST]);
 
 	// aliases
 	d["int"]     = d["int32"];
@@ -1571,7 +1578,11 @@ void fill_global_scope(scope_block_t *scope, sdecl_tracker_t *dt,
 	d["nil"]     = new_const_nil_sdecl(dt, tt);
 
 	// built-in functions
-	d["sizeof"]  = new_builtin_func_sdecl(dt, "sizeof");
+	d["sizeof"]   = new_builtin_func_sdecl(dt, "sizeof");
+	d["va_start"] = new_builtin_func_sdecl(dt, "va_start");
+	d["va_copy"]  = new_builtin_func_sdecl(dt, "va_copy");
+	d["va_arg"]   = new_builtin_func_sdecl(dt, "va_arg");
+	d["va_end"]   = new_builtin_func_sdecl(dt, "va_end");
 
 	unordered_map<std::string, sdecl_t*>::iterator it, end;
 	for (it = d.begin(), end = d.end(); it != end; ++it)
@@ -2215,26 +2226,51 @@ bool pass2_t::stmt_returns(node_t *stmt)
 	return false;
 }
 
-value_stype_t pass2_t::typecheck_builtin_call_expr(call_expr_t *expr,
-						   func_stype_t *fst)
+value_stype_t pass2_t::typecheck_builtin_call_expr(call_expr_t *expr)
 {
 	ident_expr_t *e = is_ident_expr(expr->expr);
 	CRAWL_QASSERT(e != 0);
 
+	value_stype_t out;
 	if (e->sdecl->name == "sizeof") {
-		stype_t *ftargs[] = {
-			builtin_stypes[BUILTIN_VOID]
-		};
-
-		if (!typecheck_call_expr_args(expr, ftargs, 1, false))
+		stype_t *ftargs = builtin_stypes[BUILTIN_VOID];
+		if (!typecheck_call_expr_args(expr, &ftargs, 1, false))
 			return value_stype_t();
 
 		stype_t *ty = expr->args[0]->vst.stype;
 
-		value_stype_t res;
-		res.stype = builtin_stypes[BUILTIN_ABSTRACT_INT];
-		res.value = value_t((unsigned int)ty->bits() / 8);
-		return res;
+		out.stype = builtin_stypes[BUILTIN_ABSTRACT_INT];
+		out.value = value_t((unsigned int)ty->bits() / 8);
+		return out;
+	} else if (e->sdecl->name == "va_start" | e->sdecl->name == "va_end") {
+		stype_t *ftargs = builtin_stypes[BUILTIN_VA_LIST_PTR];
+		if (!typecheck_call_expr_args(expr, &ftargs, 1, false))
+			return value_stype_t();
+
+		out.stype = builtin_stypes[BUILTIN_VOID];
+		return out;
+	} else if (e->sdecl->name == "va_copy") {
+		stype_t *ftargs[] = {
+			builtin_stypes[BUILTIN_VA_LIST_PTR],
+			builtin_stypes[BUILTIN_VA_LIST_PTR]
+		};
+
+		if (!typecheck_call_expr_args(expr, ftargs, 2, false))
+			return value_stype_t();
+
+		out.stype = builtin_stypes[BUILTIN_VOID];
+		return out;
+	} else if (e->sdecl->name == "va_arg") {
+		stype_t *ftargs[] = {
+			builtin_stypes[BUILTIN_VA_LIST_PTR],
+			builtin_stypes[BUILTIN_VOID]
+		};
+
+		if (!typecheck_call_expr_args(expr, ftargs, 2, false))
+			return value_stype_t();
+
+		out.stype = expr->args[1]->vst.stype;
+		return out;
 	}
 	return value_stype_t();
 }
@@ -2595,7 +2631,7 @@ value_stype_t pass2_t::typecheck_call_expr(call_expr_t *expr, bool mok)
 
 	func_stype_t *ft = (func_stype_t*)callee.stype->end_type();
 	if (IS_STYPE_BUILTIN(ft))
-		return typecheck_builtin_call_expr(expr, ft);
+		return typecheck_builtin_call_expr(expr);
 
 	if (!typecheck_call_expr_args(expr,
 				      &ft->args[0], ft->args.size(),
@@ -4056,10 +4092,6 @@ void pass2_t::realize_expr_type(node_t *expr, stype_t *ctx)
 		realize_unary_expr_type((unary_expr_t*)expr, ctx);
 		break;
 	}
-	case node_t::BASIC_LIT_EXPR:
-		break; // ignore this one
-	case node_t::IDENT_EXPR:
-		break; // ignore this one
 	case node_t::SELECTOR_EXPR:
 	{
 		realize_selector_expr_type((selector_expr_t*)expr, ctx);
@@ -4092,6 +4124,12 @@ void pass2_t::realize_expr_type(node_t *expr, stype_t *ctx)
 		realize_compound_lit_type((compound_lit_t*)expr, ctx);
 		break;
 	}
+	case node_t::BASIC_LIT_EXPR:
+		break; // ignore this one
+	case node_t::IDENT_EXPR:
+		break; // ignore this one
+	case node_t::TYPE_EXPR:
+		break; // ignore this one
 	default:
 		CRAWL_QASSERT(!"bad expression type");
 	}

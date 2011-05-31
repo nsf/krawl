@@ -16,6 +16,7 @@
 #include <llvm/Target/TargetData.h>
 #include <llvm/Target/TargetSelect.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Intrinsics.h>
 
 using namespace llvm;
 
@@ -79,6 +80,7 @@ struct llvm_backend_t {
 	Value *codegen_binary_expr(binary_expr_t *e);
 	Value *codegen_unary_expr(unary_expr_t *e);
 	Value *codegen_type_cast_expr(type_cast_expr_t *e);
+	Value *codegen_builtin_call_expr(call_expr_t *e);
 	Value *codegen_call_expr(call_expr_t *e);
 	Value *codegen_compound_lit(compound_lit_t *e);
 	Value *codegen_expr_addr(node_t *e);
@@ -1141,9 +1143,65 @@ Value *llvm_backend_t::codegen_type_cast_expr(type_cast_expr_t *e)
 	return expr;
 }
 
+Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
+{
+	ident_expr_t *e = is_ident_expr(expr->expr);
+	CRAWL_QASSERT(e != 0);
+
+	if (e->sdecl->name == "va_start") {
+		Function *func;
+		func = Intrinsic::getDeclaration(module, Intrinsic::vastart);
+		Value *arg = codegen_expr_value(expr->args[0]);
+		arg = codegen_assignment(arg, expr->args[0]->vst.stype,
+					 builtin_named_stypes[BUILTIN_VA_LIST]);
+		return ir->CreateCall(func, arg);
+	} else if (e->sdecl->name == "va_end") {
+		Function *func;
+		func = Intrinsic::getDeclaration(module, Intrinsic::vaend);
+		Value *arg = codegen_expr_value(expr->args[0]);
+		arg = codegen_assignment(arg, expr->args[0]->vst.stype,
+					 builtin_named_stypes[BUILTIN_VA_LIST]);
+		return ir->CreateCall(func, arg);
+	} else if (e->sdecl->name == "va_copy") {
+		// that's silly, I need something generic here
+		Function *func;
+		func = Intrinsic::getDeclaration(module, Intrinsic::vacopy);
+		std::vector<Value*> args;
+		std::vector<stype_t*> argtypes;
+
+		if (2 > expr->args.size()) {
+			CRAWL_QASSERT(expr->args.size() == 1);
+			codegen_MRV(&args, &argtypes, expr->args[0]);
+		} else {
+			args.push_back(codegen_expr_value(expr->args[0]));
+			args.push_back(codegen_expr_value(expr->args[1]));
+			argtypes.push_back(expr->args[0]->vst.stype);
+			argtypes.push_back(expr->args[1]->vst.stype);
+		}
+
+		args[0] = codegen_assignment(args[0], argtypes[0],
+					     builtin_named_stypes[BUILTIN_VA_LIST]);
+		args[1] = codegen_assignment(args[1], argtypes[1],
+					     builtin_named_stypes[BUILTIN_VA_LIST]);
+		return ir->CreateCall(func, args.begin(), args.end());
+	} else if (e->sdecl->name == "va_arg") {
+		const Type *ty = llvmtype(expr->args[1]->vst.stype);
+		Value *arg = codegen_expr_value(expr->args[0]);
+		arg = codegen_assignment(arg, expr->args[0]->vst.stype,
+					 builtin_named_stypes[BUILTIN_VA_LIST]);
+		return ir->CreateVAArg(arg, ty);
+	}
+
+	CRAWL_QASSERT(!"unreachable");
+	return 0;
+}
+
 Value *llvm_backend_t::codegen_call_expr(call_expr_t *e)
 {
 	func_stype_t *fst = (func_stype_t*)e->expr->vst.stype->end_type();
+	if (IS_STYPE_BUILTIN(fst))
+		return codegen_builtin_call_expr(e);
+
 	Value *func = codegen_expr_addr(e->expr);
 
 	// hack: If it's a variable function pointer, dereference it.

@@ -245,7 +245,7 @@ node_t::~node_t() {}
 
 bool node_t::is_expr()
 {
-	return type >= COMPOUND_LIT && type <= TYPE_CAST_EXPR;
+	return type >= COMPOUND_LIT && type <= TYPE_EXPR;
 }
 
 bool node_t::is_terminator()

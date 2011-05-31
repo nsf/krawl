@@ -1023,6 +1023,9 @@ enum {
 
 	BUILTIN_FUNC,
 
+	BUILTIN_VA_LIST,
+	BUILTIN_VA_LIST_PTR,
+
 	BUILTIN_N
 };
 
@@ -1694,15 +1697,13 @@ struct pass2_t {
 				      bool varargs);
 
 	stype_t *typecheck_var_init(node_t *init, int index);
-	value_stype_t typecheck_builtin_call_expr(call_expr_t *expr,
-						  func_stype_t *fst);
-
 	value_stype_t typecheck_basic_lit_expr(basic_lit_expr_t *expr);
 	value_stype_t typecheck_binary_expr(binary_expr_t *expr);
 	value_stype_t typecheck_unary_expr(unary_expr_t *expr);
 	value_stype_t typecheck_ident_expr(ident_expr_t *expr);
 	value_stype_t typecheck_type_cast_expr(type_cast_expr_t *expr);
 	value_stype_t typecheck_type_expr(type_expr_t *expr);
+	value_stype_t typecheck_builtin_call_expr(call_expr_t *expr);
 	value_stype_t typecheck_call_expr(call_expr_t *expr, bool mok = false);
 	value_stype_t typecheck_index_expr(index_expr_t *expr);
 	value_stype_t typecheck_compound_lit(compound_lit_t *expr);
