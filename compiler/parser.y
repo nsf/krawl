@@ -206,14 +206,14 @@ decl(D) ::= VAR(TOK) LPAREN(L) value_spec_list(VSL) osemi RPAREN(R). {
 	D = d;
 }
 decl(D) ::= FUNC(TOK) ident(N) 
-            LPAREN ofield_comma_list(A) RPAREN
+            LPAREN oargs_comma_list(A) RPAREN
 	    func_results(R) SEMICOLON.
 {
 	func_type_t *ftype = new func_type_t(A, R, TOK);
 	D = new func_decl_t(N, ftype);
 }
 decl(D) ::= FUNC(TOK) ident(N) 
-            LPAREN ofield_comma_list(A) RPAREN
+            LPAREN oargs_comma_list(A) RPAREN
 	    func_results(R) block_stmt(B).
 {
 	func_type_t *ftype = new func_type_t(A, R, TOK);
@@ -325,7 +325,7 @@ type(T) ::= ident(I).                         { T = I; }
 type(T) ::= STRUCT(TOK) LCURLY(L) ofield_semi_list_and_osemi(FL) RCURLY(R). {
 	T = new struct_type_t(FL, TOK, L, R);	
 }
-type(T) ::= FUNC(TOK) LPAREN ofield_comma_list(A) RPAREN func_results(R). {
+type(T) ::= FUNC(TOK) LPAREN oargs_comma_list(A) RPAREN func_results(R). {
 	T = new func_type_t(A, R, TOK);
 }
 
@@ -340,8 +340,16 @@ type(T) ::= FUNC(TOK) LPAREN ofield_comma_list(A) RPAREN func_results(R). {
 //------------------------------------------------------------------------------
 
 %type field_comma_list { field_vector_t* }
-field_comma_list(L) ::= nametype_list(NTL) ofunc_ellipsis(FE). {
+field_comma_list(L) ::= nametype_list(NTL). {
+	L = nametypev_to_fieldv(ctx->diag, NTL, false);
+}
+
+%type args_comma_list { field_vector_t* }
+args_comma_list(L) ::= nametype_list(NTL) ofunc_ellipsis(FE). {
 	L = nametypev_to_fieldv(ctx->diag, NTL, FE);
+}
+args_comma_list(L) ::= ELLIPSIS. {
+	L = nametypev_to_fieldv(ctx->diag, new nametype_vector_t, true);
 }
 
 %type field_semi_list { field_vector_t* }
@@ -570,10 +578,10 @@ ident(A) ::= IDENT(B). { A = new ident_expr_t(B); }
 ident_list(L) ::= ident(I).                      { L = new ident_expr_vector_t(1, I); }
 ident_list(L) ::= ident_list(L2) COMMA ident(I). { L2->push_back(I); L = L2; }
 
-// optional comma-separated field list
-%type ofield_comma_list { field_vector_t* }
-ofield_comma_list(L) ::= . { L = 0; }
-ofield_comma_list(L) ::= field_comma_list(R). { L = R; }
+// optional comma-separated args list
+%type oargs_comma_list { field_vector_t* }
+oargs_comma_list(L) ::= . { L = 0; }
+oargs_comma_list(L) ::= args_comma_list(R). { L = R; }
 
 // optional semi-separated field list
 %type ofield_semi_list_and_osemi { field_vector_t* }
