@@ -1782,6 +1782,43 @@ struct pass3_t {
 // Brawl (binary crawl format)
 //------------------------------------------------------------------------------
 
+struct FILE_reader_t {
+	FILE *file;
+	std::string strbuf;
+
+	FILE_reader_t(FILE *f);
+
+	uint64_t     read_varint();
+	uint8_t      read_uint8();
+	uint16_t     read_uint16();
+	uint32_t     read_uint32();
+	uint64_t     read_uint64();
+	int8_t       read_int8();
+	int16_t      read_int16();
+	int32_t      read_int32();
+	int64_t      read_int64();
+	std::string &read_string();
+};
+
+struct FILE_writer_t {
+	FILE *file;
+
+	FILE_writer_t(FILE *f);
+
+	void write_varint(uint64_t n);
+	void write_uint8(uint8_t n);
+	void write_uint16(uint16_t n);
+	void write_uint32(uint32_t n);
+	void write_uint64(uint64_t n);
+	void write_int8(int8_t n);
+	void write_int16(int16_t n);
+	void write_int32(int32_t n);
+	void write_int64(int64_t n);
+	void write_string(const char *str);
+	void write_string(const char *str, size_t len);
+	void write_string(const std::string &cppstr);
+};
+
 bool read_stdin(std::vector<char> *out);
 bool read_file(std::vector<char> *out, const char *filename);
 bool read_FILE(std::vector<char> *out, FILE *f);

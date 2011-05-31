@@ -1,5 +1,135 @@
 #include "crawlc.hpp"
 
+//------------------------------------------------------------------------------
+// FILE_reader_t
+//------------------------------------------------------------------------------
+
+enum {
+	VARINT_U16,
+	VARINT_U32,
+	VARINT_U64,
+
+	VARINT_BIT = (1 << 7)
+};
+
+FILE_reader_t::FILE_reader_t(FILE *f): file(f)
+{
+}
+
+uint64_t FILE_reader_t::read_varint()
+{
+	uint8_t n = read_uint8();
+	if (n & VARINT_BIT) {
+		switch (n & ~VARINT_BIT) {
+		case VARINT_U16:
+			return read_uint16();
+		case VARINT_U32:
+			return read_uint32();
+		case VARINT_U64:
+			return read_uint64();
+		default:
+			CRAWL_ASSERT(false, "invalid binary format in FILE_reader_t");
+			break;
+		}
+	}
+	return n;
+}
+
+std::string &FILE_reader_t::read_string()
+{
+	uint64_t len = read_varint();
+	if (!len) {
+		strbuf = "";
+		return strbuf;
+	}
+
+	strbuf.resize(len);
+	size_t read = fread(&strbuf[0], 1, len, file);
+	CRAWL_ASSERT(read == len,
+		     "failed to read binary data in FILE_reader_t");
+	return strbuf;
+}
+
+#define READ_TYPE(ty)								\
+do {										\
+	ty v;									\
+	size_t read = fread(&v, 1, sizeof(ty), file);				\
+	CRAWL_ASSERT(read == sizeof(ty),					\
+		     "failed to read binary data in FILE_reader_t");		\
+	return v;								\
+} while (0)
+
+uint8_t  FILE_reader_t::read_uint8()  { READ_TYPE(uint8_t);  }
+uint16_t FILE_reader_t::read_uint16() { READ_TYPE(uint16_t); }
+uint32_t FILE_reader_t::read_uint32() { READ_TYPE(uint32_t); }
+uint64_t FILE_reader_t::read_uint64() { READ_TYPE(uint64_t); }
+int8_t   FILE_reader_t::read_int8()   { READ_TYPE(int8_t);   }
+int16_t  FILE_reader_t::read_int16()  { READ_TYPE(int16_t);  }
+int32_t  FILE_reader_t::read_int32()  { READ_TYPE(int32_t);  }
+int64_t  FILE_reader_t::read_int64()  { READ_TYPE(int64_t);  }
+
+//------------------------------------------------------------------------------
+// FILE_writer_t
+//------------------------------------------------------------------------------
+
+FILE_writer_t::FILE_writer_t(FILE *f): file(f)
+{
+}
+
+void FILE_writer_t::write_varint(uint64_t n)
+{
+	if (n < 128) {
+		write_uint8(n);
+	} else {
+		if (n < 65536) {
+			write_uint8(VARINT_U16 | VARINT_BIT);
+			write_uint16(n);
+		} else if (n < 4294967296) {
+			write_uint8(VARINT_U32 | VARINT_BIT);
+			write_uint32(n);
+		} else {
+			write_uint8(VARINT_U64 | VARINT_BIT);
+			write_uint64(n);
+		}
+	}
+}
+
+void FILE_writer_t::write_string(const char *str)
+{
+	write_string(str, strlen(str));
+}
+
+void FILE_writer_t::write_string(const char *str, size_t len)
+{
+	write_varint(len);
+	size_t written = fwrite(str, 1, len, file);
+	CRAWL_ASSERT(written == len,
+		     "failed to write binary data in FILE_writer_t");
+}
+
+void FILE_writer_t::write_string(const std::string &cppstr)
+{
+	write_string(cppstr.c_str(), cppstr.size());
+}
+
+#define WRITE_TYPE(ty)								\
+do {										\
+	size_t written = fwrite(&n, 1, sizeof(ty), file);			\
+	CRAWL_ASSERT(written == sizeof(ty),					\
+		     "failed to write binary data in FILE_writer_t");		\
+} while (0)
+
+void FILE_writer_t::write_uint8(uint8_t n)   { WRITE_TYPE(uint8_t);  }
+void FILE_writer_t::write_uint16(uint16_t n) { WRITE_TYPE(uint16_t); }
+void FILE_writer_t::write_uint32(uint32_t n) { WRITE_TYPE(uint32_t); }
+void FILE_writer_t::write_uint64(uint64_t n) { WRITE_TYPE(uint64_t); }
+void FILE_writer_t::write_int8(int8_t n)     { WRITE_TYPE(int8_t);   }
+void FILE_writer_t::write_int16(int16_t n)   { WRITE_TYPE(int16_t);  }
+void FILE_writer_t::write_int32(int32_t n)   { WRITE_TYPE(int32_t);  }
+void FILE_writer_t::write_int64(int64_t n)   { WRITE_TYPE(int64_t);  }
+
+//------------------------------------------------------------------------------
+
 static void dump_to_cout(google::protobuf::Message *msg,
 			 CodedOutputStream *cout)
 {
