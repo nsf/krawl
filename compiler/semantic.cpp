@@ -1531,9 +1531,7 @@ sdecl_t *scope_block_t::has(const char *name)
 
 bool scope_block_t::add(sdecl_t *d)
 {
-	unordered_map<std::string, sdecl_t*>::iterator it;
-	it = sdecls.find(d->name.c_str());
-	if (it != sdecls.end())
+	if (sdecls.find(d->name.c_str()) != sdecls.end())
 		return false;
 
 	sdecls[d->name.c_str()] = d;
@@ -1838,9 +1836,7 @@ struct gdecls_collector_t : ast_visitor_t {
 				package_error(id);
 				return;
 			}
-		}
 
-		if (d->type == SDECL_IMPORT) {
 			if (filescope->has(d->name.c_str())) {
 				redeclared_error(d->get_ident(), diag);
 				return;
