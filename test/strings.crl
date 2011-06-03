@@ -24,7 +24,7 @@ func StringFree(s *String)
 
 func StringFromCStr(cstr *byte) (s *String)
 {
-	s = StringFromCStrLen(cstr, string.strlen(cstr));
+	s = StringFromCStrLen(cstr, string.strlen(cstr).(uint));
 }
 
 func StringFromCStrLen(cstr *byte, len uint) (s *String)
