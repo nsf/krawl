@@ -3,8 +3,8 @@ import "SDL/SDL.h";
 func put_pixel(screen *SDL.SDL_Surface, x, y, r, g, b int)
 {
 	p := screen.pixels.(*byte) +
-	     y * screen.pitch.(int) +
-	     x * screen.format.BytesPerPixel.(int);
+		y * screen.pitch +
+		x * screen.format.BytesPerPixel;
 
 	p[0] = r.(byte);
 	p[1] = g.(byte);

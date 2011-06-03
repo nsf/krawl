@@ -1,5 +1,6 @@
 #include "crawlc.hpp"
 #include "cityhash/city.h"
+#include <algorithm>
 
 
 
@@ -88,8 +89,8 @@ int bool_stype_t::bits()
 // int_stype_t
 //------------------------------------------------------------------------------
 
-int_stype_t::int_stype_t(int s, bool unsignd, bool abstract):
-	stype_t(STYPE_INT), size(s), unsignd(unsignd)
+int_stype_t::int_stype_t(int s, bool is_signed, bool abstract):
+	stype_t(STYPE_INT), size(s), is_signed(is_signed)
 {
 	if (abstract)
 		type |= STYPE_ABSTRACT;
@@ -459,61 +460,83 @@ bool are_the_same(stype_t *t1, stype_t *t2)
 	return false;
 }
 
-stype_t *non_pointer_binop_compat(stype_t *a, stype_t *b)
+//-------------------------------------------------------------------------------
+// NEW!
+//-------------------------------------------------------------------------------
+
+stype_t *non_abstract(stype_t *a, stype_t *b)
 {
-	if (!IS_STYPE_POINTER(a) && !IS_STYPE_POINTER(b)) {
-		if (are_the_same(a, b))
+	if (IS_STYPE_ABSTRACT(a))
+		return b;
+	return a;
+}
+
+stype_t *biggest_stype(stype_t *a, stype_t *b)
+{
+	if (a->bits() < b->bits())
+		return b;
+	return a;
+}
+
+stype_t *numeric_binop_compat(stype_t *a, stype_t *b)
+{
+	// abstract operands
+	if (IS_STYPE_ABSTRACT_NUMBER(a) && IS_STYPE_ABSTRACT_NUMBER(b)) {
+		if (IS_STYPE_ABSTRACT_FLOAT(a) || IS_STYPE_ABSTRACT_FLOAT(b))
+			return builtin_stypes[BUILTIN_ABSTRACT_FLOAT];
+		return builtin_stypes[BUILTIN_ABSTRACT_INT];
+	}
+
+	// only one abstract operand
+	if (IS_STYPE_ABSTRACT_NUMBER(a))
+		std::swap(a, b);
+
+	if (IS_STYPE_ABSTRACT_NUMBER(b)) {
+		if (IS_STYPE_NUMBER(a))
 			return a;
 
-		stype_t *out;
-
-		// named int OP abstract number
-		out = vice_versa(named_int_op_abstract_number, a, b);
-		if (out) return out;
-
-		// named float OP abstract number
-		out = vice_versa(named_float_op_abstract_number, a, b);
-		if (out) return out;
-
-		// named bool OP abstract bool
-		out = vice_versa(named_bool_op_abstract_bool, a, b);
-		if (out) return out;
-
-		// abstract int OP abstract float
-		out = vice_versa(abstract_int_op_abstract_float, a, b);
-		if (out) return out;
+		return 0;
 	}
+
+	// floats
+	if (IS_STYPE_FLOAT(a) && IS_STYPE_FLOAT(b))
+		return biggest_stype(a, b);
+
+	if (IS_STYPE_INT(a) && IS_STYPE_INT(b)) {
+		int_stype_t *ia = (int_stype_t*)a->end_type();
+		int_stype_t *ib = (int_stype_t*)b->end_type();
+		if ((ia->is_signed && ib->is_signed) ||
+		    (!ia->is_signed && !ib->is_signed))
+		{
+			return biggest_stype(a, b);
+		}
+
+		if (ia->is_signed && ia->size > ib->size)
+			return a;
+		if (ib->is_signed && ib->size > ia->size)
+			return b;
+	}
+
 	return 0;
 }
 
-stype_t *pointer_int_compat(stype_t *a, stype_t *b)
+stype_t *type_binop_compat(stype_t *a, stype_t *b, unsigned int type)
 {
-	return vice_versa(pointer_op_int, a, b);
-}
+	if ((a->type & type) && (b->type && type))
+		return non_abstract(a, b);
 
-stype_t *pointer_pointer_compat(stype_t *a, stype_t *b)
-{
-	if (IS_STYPE_POINTER(a) && IS_STYPE_POINTER(b)) {
-		if (are_the_same(a, b))
-			return builtin_stypes[BUILTIN_ABSTRACT_INT];
-
-		stype_t *out = vice_versa(pointer_op_pointer_to_void, a, b);
-		if (out) return out;
-	}
 	return 0;
 }
 
-stype_t *shift_op_compat(stype_t *a, stype_t *b)
+stype_t *types_binop_compat(stype_t *a, stype_t *b, unsigned int *type)
 {
-	if (IS_STYPE_INT(a)) {
-		// abstract int is always signed and unsigned
-		// checked elsewhere
-		if (IS_STYPE_ABSTRACT_INT(b))
-			return a;
+	stype_t *out;
+	while (*type) {
+		out = type_binop_compat(a, b, *type);
+		if (out)
+			return out;
 
-		// ensure int is unsigned
-		if (IS_STYPE_NAMED_INT(b))
-			return (((int_stype_t*)b->end_type())->unsignd ? a : 0);
+		type++;
 	}
 	return 0;
 }
@@ -527,38 +550,39 @@ stype_t *vice_versa(stype_t *(*pred)(stype_t*, stype_t*), stype_t *a, stype_t *b
 	return out;
 }
 
-stype_t *named_int_op_abstract_number(stype_t *a, stype_t *b)
-{
-	if (IS_STYPE_NAMED_INT(a) && IS_STYPE_ABSTRACT_NUMBER(b))
-		return a;
-	return 0;
-}
-
-stype_t *named_float_op_abstract_number(stype_t *a, stype_t *b)
-{
-	if (IS_STYPE_NAMED_FLOAT(a) && IS_STYPE_ABSTRACT_NUMBER(b))
-		return a;
-	return 0;
-}
-
-stype_t *named_bool_op_abstract_bool(stype_t *a, stype_t *b)
-{
-	if (IS_STYPE_NAMED_BOOL(a) && IS_STYPE_ABSTRACT_BOOL(b))
-		return a;
-	return 0;
-}
-
-stype_t *abstract_int_op_abstract_float(stype_t *a, stype_t *b)
-{
-	if (IS_STYPE_ABSTRACT_INT(a) && IS_STYPE_ABSTRACT_FLOAT(b))
-		return b;
-	return 0;
-}
-
 stype_t *pointer_op_int(stype_t *a, stype_t *b)
 {
 	if (IS_STYPE_POINTER(a) && IS_STYPE_INT(b))
 		return a;
+	return 0;
+}
+
+stype_t *pointer_int_compat(stype_t *a, stype_t *b)
+{
+	return vice_versa(pointer_op_int, a, b);
+}
+
+stype_t *pointer_pointer_compat(stype_t *a, stype_t *b)
+{
+	if (IS_STYPE_POINTER(a) && IS_STYPE_POINTER(b)) {
+		if (are_the_same(a, b))
+			return builtin_stypes[BUILTIN_ABSTRACT_INT];
+	}
+	return 0;
+}
+
+stype_t *shift_op_compat(stype_t *a, stype_t *b)
+{
+	if (IS_STYPE_INT(a)) {
+		// abstract int is always signed and unsigned
+		// checked elsewhere
+		if (IS_STYPE_ABSTRACT_INT(b))
+			return a;
+
+		// ensure int is unsigned
+		if (IS_STYPE_INT(b))
+			return ((int_stype_t*)b->end_type())->is_signed ? 0 : a;
+	}
 	return 0;
 }
 
@@ -570,6 +594,11 @@ stype_t *pointer_op_pointer_to_void(stype_t *a, stype_t *b)
 	return 0;
 }
 
+
+//-------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------
+
 stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 {
 	stype_t *out_op = 0;
@@ -577,10 +606,13 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 
 #define STYPE_INT_FLOAT_POINTER_STRING_BOOL \
 	(STYPE_INT | STYPE_FLOAT | STYPE_POINTER | STYPE_STRING | STYPE_BOOL)
+
 #define STYPE_INT_FLOAT_POINTER_STRING \
 	(STYPE_INT | STYPE_FLOAT | STYPE_POINTER | STYPE_STRING)
+
 #define STYPE_INT_FLOAT_POINTER \
 	(STYPE_INT | STYPE_FLOAT | STYPE_POINTER)
+
 #define STYPE_INT_FLOAT (STYPE_INT | STYPE_FLOAT)
 
 	switch (tok) {
@@ -590,12 +622,35 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 		    (b->type & STYPE_INT_FLOAT_POINTER_STRING_BOOL))
 		{
 			// result of EQ or NEQ is always a bool
-			out_op = non_pointer_binop_compat(a, b);
+
+			// numeric
+			out_op = numeric_binop_compat(a, b);
 			if (out_op) {
 				out = builtin_stypes[BUILTIN_ABSTRACT_BOOL];
 				break;
 			}
+
+			// ptr
 			out_op = pointer_pointer_compat(a, b);
+			if (out_op) {
+				out = builtin_stypes[BUILTIN_ABSTRACT_BOOL];
+				break;
+			}
+
+			// ptr and *void
+			out_op = vice_versa(pointer_op_pointer_to_void, a, b);
+			if (out_op) {
+				out = builtin_stypes[BUILTIN_ABSTRACT_BOOL];
+				break;
+			}
+
+			// string, bool
+			unsigned int types[] = {
+				STYPE_STRING,
+				STYPE_BOOL,
+				0
+			};
+			out_op = types_binop_compat(a, b, types);
 			if (out_op) {
 				out = builtin_stypes[BUILTIN_ABSTRACT_BOOL];
 				break;
@@ -606,9 +661,11 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 		if ((a->type & STYPE_INT_FLOAT_POINTER_STRING) &&
 		    (b->type & STYPE_INT_FLOAT_POINTER_STRING))
 		{
-			out_op = non_pointer_binop_compat(a, b);
+			out_op = numeric_binop_compat(a, b);
 			if (out_op) break;
 			out_op = pointer_int_compat(a, b);
+			if (out_op) break;
+			out_op = type_binop_compat(a, b, STYPE_STRING);
 		}
 		break;
 	case TOK_LT:
@@ -619,7 +676,7 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 		    (b->type & STYPE_INT_FLOAT_POINTER))
 		{
 			// result of LT, LE, GT and GE is always a bool
-			out_op = non_pointer_binop_compat(a, b);
+			out_op = numeric_binop_compat(a, b);
 			if (out_op) {
 				out = builtin_stypes[BUILTIN_ABSTRACT_BOOL];
 				break;
@@ -629,13 +686,21 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 				out = builtin_stypes[BUILTIN_ABSTRACT_BOOL];
 				break;
 			}
+
+			// ptr and *void
+			out_op = vice_versa(pointer_op_pointer_to_void, a, b);
+			if (out_op) {
+				out = builtin_stypes[BUILTIN_ABSTRACT_BOOL];
+				break;
+			}
+
 		}
 		break;
 	case TOK_MINUS:
 		if ((a->type & STYPE_INT_FLOAT_POINTER) &&
 		    (b->type & STYPE_INT_FLOAT_POINTER))
 		{
-			out_op = non_pointer_binop_compat(a, b);
+			out_op = numeric_binop_compat(a, b);
 			if (out_op) break;
 			out_op = pointer_pointer_compat(a, b);
 			if (out_op) break;
@@ -645,14 +710,14 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 	case TOK_TIMES:
 	case TOK_DIVIDE:
 		if ((a->type & STYPE_INT_FLOAT) && (b->type & STYPE_INT_FLOAT))
-			out_op = non_pointer_binop_compat(a, b);
+			out_op = numeric_binop_compat(a, b);
 		break;
 	case TOK_AND:
 	case TOK_OR:
 	case TOK_XOR:
 	case TOK_MOD:
 		if ((a->type & STYPE_INT) && (b->type & STYPE_INT))
-			out_op = non_pointer_binop_compat(a, b);
+			out_op = numeric_binop_compat(a, b);
 		break;
 	case TOK_SHIFTL:
 	case TOK_SHIFTR:
@@ -662,7 +727,7 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 	case TOK_ANDAND:
 	case TOK_OROR:
 		if ((a->type & STYPE_BOOL) && (b->type & STYPE_BOOL))
-			out_op = non_pointer_binop_compat(a, b);
+			out_op = type_binop_compat(a, b, STYPE_BOOL);
 		break;
 	}
 
@@ -709,17 +774,7 @@ bool can_typecast(stype_t *from, stype_t *to)
 	if (IS_STYPE_POINTER_OR_INT(from) && IS_STYPE_POINTER_OR_INT(to))
 		return true;
 
-	if (IS_STYPE_BOOL(from) && IS_STYPE_BOOL(to))
-		return true;
-
-	// string literal to *uint8 type
-	if (IS_STYPE_STRING(from) && IS_STYPE_POINTER(to)) {
-		pointer_stype_t *p = (pointer_stype_t*)to->end_type();
-		if (p->points_to == builtin_named_stypes[BUILTIN_UINT8])
-			return true;
-	}
-
-	return false;
+	return assignable(from, to);
 }
 
 bool value_fits_in_type(value_t *v, stype_t *t)
@@ -732,7 +787,7 @@ bool value_fits_in_type(value_t *v, stype_t *t)
 		CRAWL_QASSERT(v->type == VALUE_INT);
 		int_stype_t *it = (int_stype_t*)t;
 		int bits = mpz_sizeinbase(v->xint, 2);
-		if (it->unsignd) {
+		if (!it->is_signed) {
 			if (mpz_sgn(v->xint) >= 0 && bits <= it->bits())
 				return true;
 			return false;
@@ -785,25 +840,39 @@ bool value_fits_in_type(value_t *v, stype_t *t)
 
 bool assignable(stype_t *from, stype_t *to)
 {
-	if (are_the_same(from, to))
+	// both have same underlying types
+	if (are_the_same(from->end_type(), to->end_type()))
+		return true;
+
+	// hack
+	if (IS_STYPE_COMPOUND(from) && IS_STYPE_ARRAY_OR_STRUCT(to))
 		return true;
 
 	if (IS_STYPE_ABSTRACT_NUMBER(from) && IS_STYPE_NUMBER(to))
 		return true;
 
-	if (IS_STYPE_ABSTRACT_BOOL(from) && IS_STYPE_BOOL(to))
+	if (IS_STYPE_BOOL(from) && IS_STYPE_BOOL(to))
 		return true;
 
-	if (IS_STYPE_COMPOUND(from) && IS_STYPE_ARRAY_OR_STRUCT(to))
-		return true;
+	if (IS_STYPE_INT(from)) {
+		int_stype_t *ifrom = (int_stype_t*)from->end_type();
+		int_stype_t *ito = (int_stype_t*)to->end_type();
 
-	// one type is named and the other is not, check their end types
-	if ((IS_STYPE_NAMED(from) && !IS_STYPE_NAMED(to)) ||
-	    (!IS_STYPE_NAMED(from) && IS_STYPE_NAMED(to)))
-	{
-		return are_the_same(from->end_type(), to->end_type());
+		if (ifrom->is_signed) {
+			// from intX to intY (Y >= X)
+			if (ito->is_signed && ito->size >= ifrom->size)
+				return true;
+			return false;
+		} else {
+			// from uintX to intY (Y >= X)
+			if (ito->is_signed && ito->size > ifrom->size)
+				return true;
+			if (!ito->is_signed && ito->size >= ifrom->size)
+				return true;
+
+			return false;
+		}
 	}
-
 
 	// string literal to *int8 type
 	if (IS_STYPE_STRING(from) && IS_STYPE_POINTER(to)) {
@@ -814,16 +883,17 @@ bool assignable(stype_t *from, stype_t *to)
 	}
 
 	// implicit pointer type conversions
+	// TODO: function pointers
 	if (IS_STYPE_POINTER(from) && IS_STYPE_POINTER(to)) {
 		pointer_stype_t *pfrom = (pointer_stype_t*)from->end_type();
 		pointer_stype_t *pto   = (pointer_stype_t*)to->end_type();
 
 		// from *void to any pointer type
-		if (!IS_STYPE_NAMED(from) && pfrom->points_to_void())
+		if (pfrom->points_to_void())
 			return true;
 
 		// from any pointer type to *void
-		if (!IS_STYPE_NAMED(to) && pto->points_to_void())
+		if (pto->points_to_void())
 			return true;
 
 		// from *[]T to *T
@@ -1152,15 +1222,15 @@ void init_builtin_stypes()
 	builtin_stypes[BUILTIN_BOOL]              = new bool_stype_t;
 	builtin_stypes[BUILTIN_ABSTRACT_BOOL]     = new bool_stype_t(true);
 
-	builtin_stypes[BUILTIN_INT8]              = new int_stype_t(8,  false);
-	builtin_stypes[BUILTIN_INT16]             = new int_stype_t(16, false);
-	builtin_stypes[BUILTIN_INT32]             = new int_stype_t(32, false);
-	builtin_stypes[BUILTIN_INT64]             = new int_stype_t(64, false);
-	builtin_stypes[BUILTIN_UINT8]             = new int_stype_t(8,  true);
-	builtin_stypes[BUILTIN_UINT16]            = new int_stype_t(16, true);
-	builtin_stypes[BUILTIN_UINT32]            = new int_stype_t(32, true);
-	builtin_stypes[BUILTIN_UINT64]            = new int_stype_t(64, true);
-	builtin_stypes[BUILTIN_ABSTRACT_INT]      = new int_stype_t(0,  false, true);
+	builtin_stypes[BUILTIN_INT8]              = new int_stype_t(8,  true);
+	builtin_stypes[BUILTIN_INT16]             = new int_stype_t(16, true);
+	builtin_stypes[BUILTIN_INT32]             = new int_stype_t(32, true);
+	builtin_stypes[BUILTIN_INT64]             = new int_stype_t(64, true);
+	builtin_stypes[BUILTIN_UINT8]             = new int_stype_t(8,  false);
+	builtin_stypes[BUILTIN_UINT16]            = new int_stype_t(16, false);
+	builtin_stypes[BUILTIN_UINT32]            = new int_stype_t(32, false);
+	builtin_stypes[BUILTIN_UINT64]            = new int_stype_t(64, false);
+	builtin_stypes[BUILTIN_ABSTRACT_INT]      = new int_stype_t(0,  true, true);
 
 	builtin_stypes[BUILTIN_FLOAT32]           = new float_stype_t(32);
 	builtin_stypes[BUILTIN_FLOAT64]           = new float_stype_t(64);
@@ -4527,7 +4597,7 @@ value_t pass2_t::eval_int_unop(value_t *v, int_stype_t *t, unary_expr_t *expr)
 		mpz_neg(out.xint, v->xint);
 		return out;
 	case TOK_XOR:
-		if (!t->unsignd)
+		if (t->is_signed)
 			mpz_com(out.xint, v->xint);
 		else {
 			int bits = t->bits();

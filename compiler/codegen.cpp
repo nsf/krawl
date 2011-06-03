@@ -17,6 +17,7 @@
 #include <llvm/Target/TargetSelect.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Intrinsics.h>
+#include <algorithm>
 
 using namespace llvm;
 
@@ -74,6 +75,9 @@ struct llvm_backend_t {
 	void codegen_block_stmt(block_stmt_t *stmt);
 	void codegen_stmt(node_t *stmt);
 
+	void codegen_arithmetic_conversion(Value **l, Value **r,
+					   stype_t *lt, stype_t *rt, int tok);
+	Value *codegen_implicit_conversion(Value *v, stype_t *to);
 	Value *codegen_assignment(Value *expr, stype_t *from, stype_t *to);
 	Value *codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 				       stype_t *lt, stype_t *rt, int tok);
@@ -827,12 +831,53 @@ Value *llvm_backend_t::codegen_assignment(Value *expr, stype_t *from, stype_t *t
 	}
 	if (IS_STYPE_BOOL(to))
 		return ir->CreateZExt(expr, Type::getInt8Ty(LLGC));
+
+	if (from->bits() < to->bits())
+		return codegen_implicit_conversion(expr, to);
 	return expr;
+}
+
+Value *llvm_backend_t::codegen_implicit_conversion(Value *v, stype_t *to)
+{
+	if (IS_STYPE_FLOAT(to)) {
+		return ir->CreateFPExt(v, llvmtype(to));
+	} else if (IS_STYPE_INT(to)) {
+		int_stype_t *ist = (int_stype_t*)to->end_type();
+		if (ist->is_signed)
+			return ir->CreateSExt(v, llvmtype(to));
+		else
+			return ir->CreateZExt(v, llvmtype(to));
+	}
+	return v;
+}
+
+void llvm_backend_t::codegen_arithmetic_conversion(Value **l, Value **r,
+						   stype_t *lt, stype_t *rt,
+						   int tok)
+{
+	// don't do anything if it's a shift expression
+	if (tok == TOK_SHIFTL || tok == TOK_SHIFTR)
+		return;
+
+	if (lt->bits() == rt->bits())
+		return;
+
+	stype_t *big = biggest_stype(lt, rt);
+	Value *v = (lt == big) ? *r : *l;
+	stype_t *small = (lt == big) ? rt : lt;
+
+	v = codegen_implicit_conversion(v, big);
+
+	if (lt == big)
+		*r = v;
+	else
+		*l = v;
 }
 
 Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 					       stype_t *lt, stype_t *rt, int tok)
 {
+	codegen_arithmetic_conversion(&l, &r, lt, rt, tok);
 	if (IS_STYPE_INT(et)) {
 		int_stype_t *ist = (int_stype_t*)et->end_type();
 
@@ -861,9 +906,9 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 		case TOK_TIMES:
 			return ir->CreateMul(l, r);
 		case TOK_DIVIDE:
-			if (ist->unsignd)
-				return ir->CreateUDiv(l, r);
-			return ir->CreateSDiv(l, r);
+			if (ist->is_signed)
+				return ir->CreateSDiv(l, r);
+			return ir->CreateUDiv(l, r);
 		case TOK_AND:
 			return ir->CreateAnd(l, r);
 		case TOK_OR:
@@ -871,15 +916,15 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 		case TOK_XOR:
 			return ir->CreateXor(l, r);
 		case TOK_MOD:
-			if (ist->unsignd)
-				return ir->CreateURem(l, r);
-			return ir->CreateSRem(l, r);
+			if (ist->is_signed)
+				return ir->CreateSRem(l, r);
+			return ir->CreateURem(l, r);
 		case TOK_SHIFTL:
 			return ir->CreateShl(l, r);
 		case TOK_SHIFTR:
-			if (ist->unsignd)
-				return ir->CreateLShr(l, r);
-			return ir->CreateAShr(l, r);
+			if (ist->is_signed)
+				return ir->CreateAShr(l, r);
+			return ir->CreateLShr(l, r);
 		}
 	} else if (IS_STYPE_FLOAT(et)) {
 		switch (tok) {
@@ -900,13 +945,8 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 		// swap elements if left one is integer, it's safe because
 		// integer on the LHS is allowed only when it's an addition
 		if (IS_STYPE_INT(lhs)) {
-			Value *tmp = l;
-			l = r;
-			r = tmp;
-
-			stype_t *tmp2 = lhs;
-			lhs = rhs;
-			rhs = tmp2;
+			std::swap(l, r);
+			std::swap(lhs, rhs);
 		}
 
 		if (tok == TOK_MINUS) {
@@ -930,21 +970,21 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 		case TOK_NEQ:
 			return ir->CreateICmpNE(l, r);
 		case TOK_LT:
-			if (ist->unsignd)
-				return ir->CreateICmpULT(l, r);
-			return ir->CreateICmpSLT(l, r);
+			if (ist->is_signed)
+				return ir->CreateICmpSLT(l, r);
+			return ir->CreateICmpULT(l, r);
 		case TOK_LE:
-			if (ist->unsignd)
-				return ir->CreateICmpULE(l, r);
-			return ir->CreateICmpSLE(l, r);
+			if (ist->is_signed)
+				return ir->CreateICmpSLE(l, r);
+			return ir->CreateICmpULE(l, r);
 		case TOK_GT:
-			if (ist->unsignd)
-				return ir->CreateICmpUGT(l, r);
-			return ir->CreateICmpSGT(l, r);
+			if (ist->is_signed)
+				return ir->CreateICmpSGT(l, r);
+			return ir->CreateICmpUGT(l, r);
 		case TOK_GE:
-			if (ist->unsignd)
-				return ir->CreateICmpUGE(l, r);
-			return ir->CreateICmpSGE(l, r);
+			if (ist->is_signed)
+				return ir->CreateICmpSGE(l, r);
+			return ir->CreateICmpUGE(l, r);
 		}
 	} else if (IS_STYPE_FLOAT(lt)) {
 		switch (tok) {
@@ -1083,17 +1123,17 @@ Value *llvm_backend_t::codegen_type_cast_expr(type_cast_expr_t *e)
 		if (IS_STYPE_FLOAT(from)) {
 			// float -> int
 			int_stype_t *ist = (int_stype_t*)to->end_type();
-			if (ist->unsignd)
-				return ir->CreateFPToUI(expr, llvmtype(to));
-			else
+			if (ist->is_signed)
 				return ir->CreateFPToSI(expr, llvmtype(to));
+			else
+				return ir->CreateFPToUI(expr, llvmtype(to));
 		} else {
 			// int -> float
 			int_stype_t *ist = (int_stype_t*)from->end_type();
-			if (ist->unsignd)
-				return ir->CreateUIToFP(expr, llvmtype(to));
-			else
+			if (ist->is_signed)
 				return ir->CreateSIToFP(expr, llvmtype(to));
+			else
+				return ir->CreateUIToFP(expr, llvmtype(to));
 		}
 	}
 
@@ -1102,10 +1142,10 @@ Value *llvm_backend_t::codegen_type_cast_expr(type_cast_expr_t *e)
 		if (from->bits() < to->bits()) {
 			// smaller to larger, sext or zext
 			int_stype_t *ist = (int_stype_t*)from->end_type();
-			if (ist->unsignd)
-				return ir->CreateZExt(expr, llvmtype(to));
-			else
+			if (ist->is_signed)
 				return ir->CreateSExt(expr, llvmtype(to));
+			else
+				return ir->CreateZExt(expr, llvmtype(to));
 		}
 
 		if (from->bits() > to->bits()) {

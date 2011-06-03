@@ -38,7 +38,7 @@ func remove_nondigits(data *byte, size int) int
 {
 	j := 0;
 	for i := 0; i < size; i++ {
-		if ctype.isdigit(data[i].(int)) == 0 {
+		if ctype.isdigit(data[i]) == 0 {
 			continue;
 		}
 		data[j] = data[i];
@@ -59,7 +59,7 @@ func find_max(data *byte, size int)
 		}
 		curprod := 1;
 		for j := 0; j < 5; j++ {
-			curprod *= curset[j].(int);
+			curprod *= curset[j];
 		}
 		if curprod > maxprod {
 			maxprod = curprod;

@@ -1115,9 +1115,9 @@ struct bool_stype_t : stype_t {
 
 struct int_stype_t : stype_t {
 	int size;
-	bool unsignd;
+	bool is_signed;
 
-	int_stype_t(int s, bool unsignd, bool abstract = false);
+	int_stype_t(int s, bool is_signed, bool abstract = false);
 	std::string to_string();
 	int bits();
 };
@@ -1294,17 +1294,16 @@ void free_builtin_stypes();
 #define IS_STYPE_NAMED_INT(t)		(IS_STYPE_NAMED(t) && IS_STYPE_INT(t))
 #define IS_STYPE_NAMED_FLOAT(t)		(IS_STYPE_NAMED(t) && IS_STYPE_FLOAT(t))
 
-stype_t *non_pointer_binop_compat(stype_t *a, stype_t *b);
+stype_t *non_abstract(stype_t *a, stype_t *b);
+stype_t *biggest_stype(stype_t *a, stype_t *b);
+stype_t *numeric_binop_compat(stype_t *a, stype_t *b);
+stype_t *type_binop_compat(stype_t *a, stype_t *b, unsigned int type);
+stype_t *types_binop_compat(stype_t *a, stype_t *b, unsigned int *type);
+stype_t *vice_versa(stype_t *(*pred)(stype_t*, stype_t*), stype_t *a, stype_t *b);
+stype_t *pointer_op_int(stype_t *a, stype_t *b);
 stype_t *pointer_int_compat(stype_t *a, stype_t *b);
 stype_t *pointer_pointer_compat(stype_t *a, stype_t *b);
 stype_t *shift_op_compat(stype_t *a, stype_t *b);
-
-stype_t *vice_versa(stype_t *(*pred)(stype_t*, stype_t*), stype_t *a, stype_t *b);
-stype_t *named_int_op_abstract_number(stype_t *a, stype_t *b);
-stype_t *named_float_op_abstract_number(stype_t *a, stype_t *b);
-stype_t *named_bool_op_abstract_bool(stype_t *a, stype_t *b);
-stype_t *abstract_int_op_abstract_float(stype_t *a, stype_t *b);
-stype_t *pointer_op_int(stype_t *a, stype_t *b);
 stype_t *pointer_op_pointer_to_void(stype_t *a, stype_t *b);
 
 // binary operation compatible, returns the resulting type of the expression

@@ -1,121 +1,101 @@
-==============================================================================
-= Basic type information
-==============================================================================
-
-Type classes
- - VOID
- - BOOL
- - INT
- - FLOAT
- - STRING (abstract type only)
- - POINTER
- - STRUCT
- - UNION
- - ARRAY
- - FUNC (special pointer type)
-
-Built-in named types:
- - void
- - bool
- - int8, int16, int32, int64
- - uint8, uint16, uint32, uint64
- - float32
- - float64
-
-Aliases:
- - int    (alias to int32)
- - uint   (alias to uint32)
- - byte   (alias to uint8)
- - float  (alias to float32)
- - double (alias to float64)
-
-Possible composite types:
- - [5]T              (composite array)
- - *T                (composite pointer)
- - struct { fields } (composite struct)
- - union { fields }  (composite union)
- - func(args)ret     (composite func)
+glossary for rules:
+  #     - means any without restrictions
+          (can't use *, because it is a pointer symbol)
+  [A-Z] - means any, but with restrictions
+          (specified in parens)
 
 
+==========================================================================
+= Assignable (implicitly convertable)
+==========================================================================
+Cases:
+	var X = Y;
+	X := Y;
+	foo(X, Y);
+	return X, Y;
 
+0. aint, afloat to int#, uint#, float#
+1. abool, bool  to bool
+2. intX         to intY (Y >= X)
+3. uintX        to intY (Y > X), uintZ (Z >= X)
+4. float32      to float64
+5. astring      to *byte
+6. *#, func(#)# to *void
+7. *void        to *#, func(#)#
+8. *[#]T        to *T
+9. X            to Y (if X and Y have the same underlying types)
 
-==============================================================================
-= Sets of rules for binary expressions ("<->" means "and vice versa")
-==============================================================================
-	non_pointer_binop_compat = 
-		if !one_of(is_pointer, A, B) {
-			are_the_same(A, B)
-			is_int(A)          && is_abstract_number(B) <->
-			is_float(A)        && is_abstract_number(B) <->
-			is_bool(A)         && is_abstract_bool(B)   <->
-			is_abstract_int(A) && is_abstract_float(B)  <->
-		}
+==========================================================================
+= Convertable (explicitly)
+==========================================================================
+Cases:
+	X.(T);
 
-	pointer_int =
-		is_pointer(A) && is_int(B) <->
+1. int#, uint#, float# to int#, uint#, float#
+2. int#, uint#, *# to int#, uint#, *#
+3. assignable(X, Y)
 
-	pointer_pointer =
-		are_the_same(A, B)
+==========================================================================
+= Arithmetic implicit conversion
+==========================================================================
+Valid only for int#, uint#, float# operands
 
-	shift_op =
-		is_int(A) && is_unsigned_int(B)
+(rules should be applied in the given order, each rule in case of success,
+ terminates conversion)
 
+1. If one operand is float64, the other operand is converted to float64.
+2. If one operand is float32, the other operand is converted to float32.
+3. If both operands are uint# or int#, smaller is converted to the bigger.
+4. If the bigger operand is int#, smaller is converted to the bigger.
+5. (The case where one operand is uintX and the other operand is intY, and 
+    X >= Y is not binary op compatible)
 
+==========================================================================
+= Binary op compatible
+==========================================================================
+Cases:
+	X op Y
 
+op(==), op(!=),
+defined for: int#, uint#, float#, *#, string, bool
+	1. int#, uint#         OP int#, uint#
+	2. float#              OP float#
+	3. *#                  OP *#
+	4. stirng              OP string
+	5. bool                OP bool
 
-==============================================================================
-= Binary operators, valid operands and additional rules
-==============================================================================
+op(+),
+defined for: int#, uint#, float#, *#, string
+	1. int#, uint#         OP int#, uint#
+	2. float#              OP float#
+	3. int#, uint#, *#     OP int#, uint#, *#
+	4. string              OP string
 
-  Operator	| Valid operand classes		| Additional validation rules
-		|				| 
-  == !=		| INT FLOAT POINTER STRING BOOL	| non_pointer_binop_compat || pointer_pointer
-  +		| INT FLOAT POINTER STRING	| non_pointer_binop_compat || pointer_int
-  -		| INT FLOAT POINTER             | non_pointer_binop_compat || pointer_pointer || pointer_int
-  < <= > >=	| INT FLOAT POINTER		| non_pointer_binop_compat || pointer_pointer
-  * /		| INT FLOAT			| non_pointer_binop_compat
-  & | ^ %	| INT				| non_pointer_binop_compat
-  << >>		| INT				| shift_op
-  && ||		| BOOL				| non_pointer_binop_compat
+op(-),
+defined for: int#, uint#, float#, *#
+	1. int#, uint#         OP int#, uint#
+	2. float#              OP float#
+	3. *#                  OP int#, uint#, *#
 
-The resulting type of a binary expression:
+op(<), op(<=), op(>), op(>=),
+defined for: int#, uint#, float#, *#
+	1. int#, uint#         OP int#, uint#
+	2. float#              OP float#
+	3. *#                  OP *#
 
-1. If both types are the same, the resulting type is the type of both operands.
-2. If one of the operands has a concrete type and the other has an abstract
-   type, the resulting type is a concrete type.
-3. If both operands are abstract number types, the resulting type is the
-   abstract float type.
-4. Exceptions:
-   - If one of the operands is a pointer and the other is int, the resulting
-     type is a pointer type.
-   - If both operands are pointers, the resulting type is an abstract int.
-   - Abstract bool type is the resulting type of all comparison operators
-     (== != < <= > >=).
-   - The resulting type of a binary shift expression is the type of the left
-     side operand.
+op(*), op(/),
+defined for: int#, uint#, float#
+	1. int#, uint#         OP int#, uint#
+	2. float#              OP float#
 
+op(&), op(|), op(^), op(%),
+defined for: int#, uint#
+	1. int#, uint# OP int#, uint#
 
+op(<<), op(>>),
+defined for: int#, uint#
+	1. int#, uint# OP uint#
 
-
-==============================================================================
-= Unary operators
-==============================================================================
-  + -				INT FLOAT
-  ^ (bitwise NOT)		INT
-  !				BOOL
-  &				ADDRESSABLE
-  *				POINTER
-
-
-
-
-==============================================================================
-= Explicit type casts
-==============================================================================
-  INT <-> FLOAT
-  POINTER <-> INT
-  POINTER <-> FUNC
-
-  INT -> INT
-  FLOAT -> FLOAT
-  POINTER -> POINTER
+op(&&), op(||),
+defined for: bool
+	1. bool OP bool
