@@ -40,6 +40,8 @@ struct llvm_backend_t {
 	IRBuilder<> *ir;
 	IRBuilder<> *ir_alloca;
 	IRBuilder<> *ir_init;
+	IRBuilder<> *ir_init_alloca;
+	Instruction *ir_init_alloca_pt;
 
 	func_sdecl_t *cur_func_decl;
 
@@ -56,7 +58,7 @@ struct llvm_backend_t {
 	FunctionType *llvmfunctype(func_stype_t *fst);
 	const Type *llvmtype(stype_t *st);
 
-	IRBuilder<> *create_init_func();
+	void create_init_func();
 	void finalize_init_func();
 
 	void codegen_MRV(std::vector<Value*> *values,
@@ -1502,7 +1504,9 @@ void llvm_backend_t::codegen_init(var_sdecl_t *d)
 		return;
 
 	IRBuilder<> *save_ir = ir;
+	IRBuilder<> *save_ir_alloca = ir_alloca;
 	ir = ir_init;
+	ir_alloca = ir_init_alloca;
 
 	codegen_init_deps(d->init);
 	Value *expr = codegen_expr_value(d->init);
@@ -1510,6 +1514,7 @@ void llvm_backend_t::codegen_init(var_sdecl_t *d)
 	ir->CreateStore(expr, d->addr);
 
 	ir = save_ir;
+	ir_alloca = save_ir_alloca;
 }
 
 void llvm_backend_t::codegen_top_var_pre(var_sdecl_t *vsd)
@@ -1540,9 +1545,6 @@ void llvm_backend_t::codegen_top_var_pre(var_sdecl_t *vsd)
 
 void llvm_backend_t::codegen_top_var(var_sdecl_t *vsd)
 {
-	if (vsd->inited)
-		return;
-
 	codegen_init(vsd);
 }
 
@@ -1657,7 +1659,6 @@ void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
 	ir = save_ir;
 	ir_alloca = save_ir_alloca;
 	alloca_pt->eraseFromParent();
-	alloca_pt = 0;
 	cur_func_decl = save_cur_func_decl;
 }
 
@@ -1704,21 +1705,29 @@ void llvm_backend_t::codegen_top_sdecls(std::vector<const char*> *pkgdecls)
 	}
 }
 
-IRBuilder<> *llvm_backend_t::create_init_func()
+void llvm_backend_t::create_init_func()
 {
 	FunctionType *ft = FunctionType::get(Type::getVoidTy(LLGC), false);
 	Function *f = Function::Create(ft, Function::PrivateLinkage,
 				       "__init_crawl_globals", module);
 
 	BasicBlock *entry = BasicBlock::Create(LLGC, "", f);
-	IRBuilder<> *ib = new IRBuilder<>(LLGC);
-	ib->SetInsertPoint(entry);
-	return ib;
+	ir_init = new IRBuilder<>(LLGC);
+	ir_init_alloca = new IRBuilder<>(LLGC);
+
+	ir_init->SetInsertPoint(entry);
+
+	Constant *zero = ConstantInt::getNullValue(Type::getInt32Ty(LLGC));
+	ir_init_alloca_pt = CastInst::Create(Instruction::BitCast, zero,
+					     Type::getInt32Ty(LLGC));
+	ir_init->Insert(ir_init_alloca_pt);
+	ir_init_alloca->SetInsertPoint(ir_init_alloca_pt);
 }
 
 void llvm_backend_t::finalize_init_func()
 {
 	ir_init->CreateRetVoid();
+	ir_init_alloca_pt->eraseFromParent();
 }
 
 void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
@@ -1726,7 +1735,7 @@ void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 	module = new Module("Main", LLGC);
 	ir = 0;
 	ir_alloca = 0;
-	ir_init = create_init_func();
+	create_init_func();
 
 	cur_func_decl = 0;
 	cur_loop = 0;
