@@ -435,8 +435,11 @@ void llvm_backend_t::codegen_switch_stmt_case(switch_stmt_case_t *stmt)
 		}
 	}
 
-	if (!isa<TerminatorInst>(ir->GetInsertBlock()->back()))
+	if (ir->GetInsertBlock()->empty() ||
+	    !isa<TerminatorInst>(ir->GetInsertBlock()->back()))
+	{
 		ir->CreateBr(cur_switch_end);
+	}
 }
 
 void llvm_backend_t::codegen_switch_stmt(switch_stmt_t *stmt)
