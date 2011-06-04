@@ -220,14 +220,6 @@ func_stype_t::func_stype_t():
 {
 }
 
-func_stype_t::func_stype_t(stype_vector_t *args, stype_vector_t *results,
-			   bool varargs):
-	stype_t(STYPE_FUNC), varargs(varargs)
-{
-	this->args.swap(*args);
-	this->results.swap(*results);
-}
-
 std::string func_stype_t::to_string()
 {
 	std::string out = "func(";
@@ -282,20 +274,17 @@ bool struct_field_t::operator!=(const struct_field_t &r)
 }
 
 struct_stype_t::struct_stype_t():
-	stype_t(STYPE_STRUCT), alignment(0), size(0)
+	stype_t(STYPE_STRUCT), u(false), alignment(0), size(0), biggest(0)
 {
-}
-
-struct_stype_t::struct_stype_t(std::vector<struct_field_t> *fields,
-			       size_t alignment, size_t size):
-	stype_t(STYPE_STRUCT), alignment(alignment), size(size)
-{
-	this->fields.swap(*fields);
 }
 
 std::string struct_stype_t::to_string()
 {
-	std::string out = "struct { ";
+	std::string out;
+	if (u)
+		out += "union { ";
+	else
+		out += "struct { ";
 	for (size_t i = 0, n = fields.size(); i < n; ++i) {
 		struct_field_t *f = &fields[i];
 		out += f->name;
@@ -363,9 +352,9 @@ size_t stype_hash(stype_t *t)
 	} else if (IS_STYPE_ARRAY(t)) {
 		array_stype_t *at = (array_stype_t*)t;
 		return 1 + at->size + stype_hash(at->elem);
-	} else if (IS_STYPE_STRUCT(t)) {
+	} else if (IS_STYPE_STRUCT_OR_UNION(t)) {
 		struct_stype_t *st = (struct_stype_t*)t;
-		size_t h = st->alignment + st->size + st->fields.size();
+		size_t h = st->alignment + st->size + st->fields.size() + st->u;
 		for (size_t i = 0, n = st->fields.size(); i < n; ++i) {
 			h += st->fields[i].padding;
 			h += CityHash64(st->fields[i].name.c_str(), st->fields[i].name.length());
@@ -439,7 +428,7 @@ bool are_the_same(stype_t *t1, stype_t *t2)
 		return are_the_same(ast1->elem, ast2->elem);
 	}
 
-	if (IS_STYPE_STRUCT(t1) && IS_STYPE_STRUCT(t2)) {
+	if (IS_STYPE_STRUCT_OR_UNION(t1) && IS_STYPE_STRUCT_OR_UNION(t2)) {
 		struct_stype_t *sst1 = (struct_stype_t*)t1->end_type();
 		struct_stype_t *sst2 = (struct_stype_t*)t2->end_type();
 
@@ -448,6 +437,8 @@ bool are_the_same(stype_t *t1, stype_t *t2)
 		if (sst1->alignment != sst2->alignment)
 			return false;
 		if (sst1->fields.size() != sst2->fields.size())
+			return false;
+		if (sst1->u != sst2->u)
 			return false;
 
 		for (size_t i = 0, n = sst1->fields.size(); i < n; ++i) {
@@ -936,7 +927,7 @@ void stype_visitor_t::traverse(stype_t *t)
 		pointer_stype_t *pst = (pointer_stype_t*)t;
 		v->traverse(pst->points_to);
 		if (terminate) return;
-	} else if (IS_STYPE_STRUCT(t)) {
+	} else if (IS_STYPE_STRUCT_OR_UNION(t)) {
 		struct_stype_t *sst = (struct_stype_t*)t;
 		for (size_t i = 0, n = sst->fields.size(); i < n; ++i) {
 			v->traverse(sst->fields[i].type);
@@ -1059,6 +1050,15 @@ void check_type_for_size_loops(diagnostic_t *diag, named_stype_t *t)
 	}
 }
 
+void check_declared_type_sdecl(diagnostic_t *diag, type_sdecl_t *sd)
+{
+	check_type_for_size_loops(diag, (named_stype_t*)sd->stype);
+	if (!sd->typeerror && IS_STYPE_STRUCT_OR_UNION(sd->stype)) {
+		struct_stype_t *sst = (struct_stype_t*)sd->stype->end_type();
+		fix_structs_alignment(sst);
+	}
+}
+
 struct structs_alignment_fixer_t : stype_visitor_t {
 	bool ignore_pointers;
 
@@ -1068,7 +1068,7 @@ struct structs_alignment_fixer_t : stype_visitor_t {
 		if (ignore_pointers && IS_STYPE_POINTER_OR_FUNC(t))
 			return 0;
 
-		if (IS_STYPE_STRUCT(t)) {
+		if (IS_STYPE_STRUCT_OR_UNION(t)) {
 			// fix struct types
 			struct_stype_t *sst = (struct_stype_t*)t->end_type();
 			fix_structs_alignment(sst);
@@ -1079,10 +1079,65 @@ struct structs_alignment_fixer_t : stype_visitor_t {
 	}
 };
 
+static void fix_unions_alignment(struct_stype_t *sst)
+{
+	// fix all children that I'm depending on
+	structs_alignment_fixer_t fixer;
+	fixer.ignore_pointers = true;
+	for (size_t i = 0, n = sst->fields.size(); i < n; ++i)
+		fixer.traverse(sst->fields[i].type);
+
+	stype_t *max = 0;
+	size_t max_size = 0;
+	size_t max_align = 0;
+	for (size_t i = 0, n = sst->fields.size(); i < n; ++i) {
+		struct_field_t *f = &sst->fields[i];
+		size_t align = alignment_of(f->type);
+		if (align > max_align)
+			max_align = align;
+
+		size_t size = f->type->bits() / 8;
+		if (size > max_size) {
+			max_size = size;
+			max = f->type;
+		}
+
+		f->padding = 0;
+	}
+
+	sst->alignment = max_align;
+	sst->size = max_size;
+	sst->biggest = max;
+
+	/*
+	printf("union (alignment: %d, size: %d) {\n",
+	       sst->alignment, sst->size);
+	for (size_t i = 0, n = sst->fields.size(); i < n; ++i) {
+		printf("\tfield: %s, size: %d, padding: %d\n",
+		       sst->fields[i].name.c_str(),
+		       sst->fields[i].type->bits() / 8,
+		       sst->fields[i].padding);
+	}
+	printf("}\n");
+	*/
+
+	// traverse all children again, now it's ok to refer to me, because my
+	// alignment was fixed
+	fixer.ignore_pointers = false;
+	for (size_t i = 0, n = sst->fields.size(); i < n; ++i)
+		fixer.traverse(sst->fields[i].type);
+}
+
 void fix_structs_alignment(struct_stype_t *sst)
 {
 	if (sst->alignment_fixed())
 		return;
+
+	if (sst->u) {
+		// if this is a union, we do that differently
+		fix_unions_alignment(sst);
+		return;
+	}
 
 	// fix all children that I'm depending on
 	structs_alignment_fixer_t fixer;
@@ -1122,7 +1177,7 @@ void fix_structs_alignment(struct_stype_t *sst)
 	printf("}\n");
 	*/
 
-	// traverse all children again, not it's ok to refer to me, because my
+	// traverse all children again, now it's ok to refer to me, because my
 	// alignment was fixed
 	fixer.ignore_pointers = false;
 	for (size_t i = 0, n = sst->fields.size(); i < n; ++i)
@@ -1202,12 +1257,15 @@ stype_t *new_array_stype(stype_tracker_t *tt, stype_t *elem, size_t size)
 }
 
 stype_t *new_struct_stype(stype_tracker_t *tt, std::vector<struct_field_t> *fields,
-			  size_t alignment, size_t size)
+			  size_t alignment, size_t size, bool u)
 {
 	struct_stype_t *st = new struct_stype_t;
+	if (u)
+		st->type = STYPE_UNION;
 	st->alignment = alignment;
 	st->size = size;
 	st->fields.swap(*fields);
+	st->u = u;
 	tt->push_back(st);
 	return st;
 }
@@ -2155,7 +2213,8 @@ stype_t *pass2_t::typegen(node_t *expr)
 		if (!typegen_for_structfields(&fields, &e->fields))
 			return 0;
 
-		return new_struct_stype(ttracker, &fields, 0, 0);
+		return new_struct_stype(ttracker, &fields, 0, 0,
+					e->tok == TOK_UNION);
 	}
 	case node_t::SELECTOR_EXPR:
 	{
@@ -2870,23 +2929,23 @@ value_stype_t pass2_t::typecheck_selector_expr(selector_expr_t *expr)
 	bool is_pointer_to_struct = false;
 	if (IS_STYPE_POINTER(op.stype)) {
 		pointer_stype_t *pst = (pointer_stype_t*)op.stype->end_type();
-		if (IS_STYPE_STRUCT(pst->points_to))
+		if (IS_STYPE_STRUCT_OR_UNION(pst->points_to))
 			is_pointer_to_struct = true;
 	}
 
-	if (!IS_STYPE_STRUCT(op.stype) && !is_pointer_to_struct) {
+	if (!IS_STYPE_STRUCT_OR_UNION(op.stype) && !is_pointer_to_struct) {
 		source_loc_range_t range = expr->expr->source_loc_range();
 		message_t *m;
 		m = new_message(MESSAGE_ERROR,
 				range.beg, false, &range, 1,
-				"selector operand must be a struct "
+				"selector operand must be a struct or a union "
 				"or a pointer to struct");
 		diag->report(m);
 		return value_stype_t();
 	}
 
 	struct_stype_t *sst;
-	if (IS_STYPE_STRUCT(op.stype))
+	if (IS_STYPE_STRUCT_OR_UNION(op.stype))
 		sst = (struct_stype_t*)op.stype->end_type();
 	else if (is_pointer_to_struct) {
 		pointer_stype_t *pst = (pointer_stype_t*)op.stype->end_type();
@@ -3010,6 +3069,7 @@ void pass2_t::pass(std::vector<const char*> *pkgdecls)
 		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
 		if (sd->type != SDECL_TYPE)
 			continue;
+
 		resolve_sdecl(sd);
 
 		if (!sd->stype || sd->typeerror)
@@ -3017,7 +3077,7 @@ void pass2_t::pass(std::vector<const char*> *pkgdecls)
 
 		check_type_for_size_loops(diag, (named_stype_t*)sd->stype);
 
-		if (!sd->typeerror && IS_STYPE_STRUCT(sd->stype)) {
+		if (!sd->typeerror && IS_STYPE_STRUCT_OR_UNION(sd->stype)) {
 			struct_stype_t *sst = (struct_stype_t*)sd->stype->end_type();
 			fix_structs_alignment(sst);
 		}
@@ -3174,6 +3234,14 @@ void pass2_t::typecheck_decl_stmt(decl_stmt_t *stmt)
 		break;
 	default:
 		declare_decl(stmt->decl, dtracker, pass2_declare, this);
+		if (stmt->decl->type == node_t::TYPE_DECL) {
+			type_decl_t *td = (type_decl_t*)stmt->decl;
+			for (size_t i = 0, n = td->specs.size(); i < n; ++i) {
+				type_sdecl_t *tsd;
+				tsd = (type_sdecl_t*)td->specs[i]->name->sdecl;
+				check_declared_type_sdecl(diag, tsd);
+			}
+		}
 		return;
 	}
 

@@ -811,6 +811,7 @@ typedef std::vector<nametype_t> nametype_vector_t;
 //------------------------------------------------------------------------------
 
 struct struct_type_t : node_t {
+	int tok;
 	field_vector_t fields;
 	source_loc_t pos; // struct
 	source_loc_t pos_lcb;
@@ -1046,13 +1047,14 @@ enum stype_type_t {
 	// composite
 	STYPE_POINTER  = 1 << 7,
 	STYPE_STRUCT   = 1 << 8,
-	STYPE_ARRAY    = 1 << 9,
-	STYPE_FUNC     = 1 << 10,
+	STYPE_UNION    = 1 << 9,
+	STYPE_ARRAY    = 1 << 10,
+	STYPE_FUNC     = 1 << 11,
 
 	// mods
-	STYPE_NAMED    = 1 << 11,
-	STYPE_ABSTRACT = 1 << 12,
-	STYPE_BUILTIN  = 1 << 13,
+	STYPE_NAMED    = 1 << 12,
+	STYPE_ABSTRACT = 1 << 13,
+	STYPE_BUILTIN  = 1 << 14,
 };
 
 struct stype_t {
@@ -1190,8 +1192,6 @@ struct func_stype_t : stype_t {
 	bool varargs;
 
 	func_stype_t();
-	func_stype_t(stype_vector_t *args, stype_vector_t *results,
-		     bool varargs);
 	std::string to_string();
 	int bits();
 };
@@ -1211,12 +1211,12 @@ struct struct_field_t {
 
 struct struct_stype_t : stype_t {
 	std::vector<struct_field_t> fields;
+	bool u; // is this a union?
 	size_t alignment; // alignment of a structure
 	size_t size;
+	stype_t *biggest;
 
 	struct_stype_t();
-	struct_stype_t(std::vector<struct_field_t> *fields,
-		       size_t alignment, size_t size);
 	std::string to_string();
 	int bits();
 
@@ -1256,7 +1256,7 @@ stype_t *new_func_stype(stype_tracker_t *tt,
 			bool varargs);
 stype_t *new_array_stype(stype_tracker_t *tt, stype_t *elem, size_t size);
 stype_t *new_struct_stype(stype_tracker_t *tt, std::vector<struct_field_t> *fields,
-			  size_t alignment, size_t size);
+			  size_t alignment, size_t size, bool u);
 
 extern stype_t *builtin_stypes[BUILTIN_N];
 extern stype_t *builtin_named_stypes[BUILTIN_N];
@@ -1271,6 +1271,7 @@ void free_builtin_stypes();
 #define IS_STYPE_COMPOUND(t)		(t->type & STYPE_COMPOUND)
 #define IS_STYPE_POINTER(t)		(t->type & STYPE_POINTER)
 #define IS_STYPE_STRUCT(t)		(t->type & STYPE_STRUCT)
+#define IS_STYPE_UNION(t)		(t->type & STYPE_UNION)
 #define IS_STYPE_ARRAY(t)		(t->type & STYPE_ARRAY)
 #define IS_STYPE_FUNC(t)		(t->type & STYPE_FUNC)
 #define IS_STYPE_NAMED(t)		(t->type & STYPE_NAMED)
@@ -1284,6 +1285,7 @@ void free_builtin_stypes();
 #define IS_STYPE_COMPOUND_OR_ARRAY(t)	(IS_STYPE_COMPOUND(t) || IS_STYPE_ARRAY(t))
 #define IS_STYPE_ARRAY_OR_STRUCT(t)	(IS_STYPE_ARRAY(t) || IS_STYPE_STRUCT(t))
 #define IS_STYPE_POINTER_OR_FUNC(t)     (IS_STYPE_POINTER(t) || IS_STYPE_FUNC(t))
+#define IS_STYPE_STRUCT_OR_UNION(t)	(IS_STYPE_STRUCT(t) || IS_STYPE_UNION(t))
 
 #define IS_STYPE_ABSTRACT_NUMBER(t)	(IS_STYPE_ABSTRACT(t) && IS_STYPE_NUMBER(t))
 #define IS_STYPE_ABSTRACT_BOOL(t)	(IS_STYPE_ABSTRACT(t) && IS_STYPE_BOOL(t))

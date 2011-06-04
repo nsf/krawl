@@ -35,7 +35,7 @@ func main(argc int, argv **byte) int
 	var e SDL.SDL_Event;
 	for {
 		for SDL.SDL_PollEvent(&e) != 0 {
-			switch e[0] {
+			switch e._type {
 			case SDL.SDL_QUIT:
 				return 0;
 			case SDL.SDL_KEYDOWN:

@@ -286,7 +286,7 @@ void brawl_stypes_t::save(FILE_writer_t *cout)
 			serialize_named(cout, (named_stype_t*)t);
 		else if (IS_STYPE_POINTER(t))
 			serialize_pointer(cout, (pointer_stype_t*)t);
-		else if (IS_STYPE_STRUCT(t))
+		else if (IS_STYPE_STRUCT_OR_UNION(t))
 			serialize_struct(cout, (struct_stype_t*)t);
 		else if (IS_STYPE_ARRAY(t))
 			serialize_array(cout, (array_stype_t*)t);
@@ -425,7 +425,7 @@ void brawl_stypes_t::deserialize_types(FILE_reader_t *cin, size_t n)
 			deserialize_pointer(cin);
 		else if (type & STYPE_ARRAY)
 			deserialize_array(cin);
-		else if (type & STYPE_STRUCT)
+		else if (type & (STYPE_STRUCT | STYPE_UNION))
 			deserialize_struct(cin);
 		else if (type & STYPE_FUNC)
 			deserialize_func(cin);
@@ -453,7 +453,7 @@ void brawl_stypes_t::restore_pointers()
 		} else if (IS_STYPE_ARRAY(st)) {
 			array_stype_t *t = (array_stype_t*)st;
 			t->elem = index_stype((int64_t)t->elem);
-		} else if (IS_STYPE_STRUCT(st)) {
+		} else if (IS_STYPE_STRUCT_OR_UNION(st)) {
 			struct_stype_t *t = (struct_stype_t*)st;
 			for (size_t i = 0, n = t->fields.size(); i < n; ++i) {
 				struct_field_t *f = &t->fields[i];

@@ -59,9 +59,10 @@
 #define TOK_RSB                            59
 #define TOK_DOT                            60
 #define TOK_STRUCT                         61
-#define TOK_ELLIPSIS                       62
-#define TOK_COMMA                          63
-#define TOK_INT                            64
-#define TOK_FLOAT                          65
-#define TOK_CHAR                           66
-#define TOK_NOT                            67
+#define TOK_UNION                          62
+#define TOK_ELLIPSIS                       63
+#define TOK_COMMA                          64
+#define TOK_INT                            65
+#define TOK_FLOAT                          66
+#define TOK_CHAR                           67
+#define TOK_NOT                            68

@@ -122,14 +122,11 @@ struct CToCrawlASTConsumer : ASTConsumer {
 	std::string struct_body_to_crawl(RecordDecl *rd)
 	{
 		// union case
-		if (rd->getTypeForDecl()->isUnionType()) {
-			std::string out;
-			cppsprintf(&out, "[%d]uint8",
-				   ctx->ctx->getTypeSize(rd->getTypeForDecl()));
-			return out;
-		}
-
-		std::string out = "struct { ";
+		std::string out;
+		if (rd->getTypeForDecl()->isUnionType())
+			out += "union { ";
+		else
+			out += "struct { ";
 		RecordDecl::field_iterator it, end;
 		for (it = rd->field_begin(), end = rd->field_end(); it != end; ++it) {
 			if (it->getName() == "type")

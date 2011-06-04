@@ -70,6 +70,7 @@
 		'const'       { tok_op(TOK_CONST);       fbreak; };
 		'var'         { tok_op(TOK_VAR);         fbreak; };
 		'struct'      { tok_op(TOK_STRUCT);      fbreak; };
+		'union'       { tok_op(TOK_UNION);       fbreak; };
 		
 		#------------------------------------------------------------------------------
 		# operators

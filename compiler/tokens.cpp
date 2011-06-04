@@ -64,6 +64,7 @@ const char *token_to_string(int tok)
 	case TOK_RSB: return "TOK_RSB";
 	case TOK_DOT: return "TOK_DOT";
 	case TOK_STRUCT: return "TOK_STRUCT";
+	case TOK_UNION: return "TOK_UNION";
 	case TOK_ELLIPSIS: return "TOK_ELLIPSIS";
 	case TOK_COMMA: return "TOK_COMMA";
 	case TOK_INT: return "TOK_INT";

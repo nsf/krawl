@@ -87,6 +87,7 @@ struct llvm_backend_t {
 	Value *codegen_builtin_call_expr(call_expr_t *e);
 	Value *codegen_call_expr(call_expr_t *e);
 	Value *codegen_compound_lit(compound_lit_t *e);
+	Value *codegen_union_cast(selector_expr_t *e, Value *addr);
 	Value *codegen_expr_addr(node_t *e);
 	Value *codegen_expr_value(node_t *e);
 	Value *codegen_load(Value *addr, stype_t *ty);
@@ -304,15 +305,19 @@ const Type *llvm_backend_t::llvmtype(stype_t *st)
 		const Type *functy = PointerType::getUnqual(llvmfunctype(fst));
 
 		REFINE_TMP_TYPE(functy);
-	} else if (st->type & STYPE_STRUCT) {
+	} else if (st->type & (STYPE_STRUCT | STYPE_UNION)) {
 		struct_stype_t *sst = (struct_stype_t*)st->end_type();
 
 		BIND_TMP_TYPE();
 
 		std::vector<const Type*> fields;
-		fields.reserve(sst->fields.size());
-		for (size_t i = 0, n = sst->fields.size(); i < n; ++i)
-			fields.push_back(llvmtype(sst->fields[i].type));
+		if (sst->u) {
+			fields.push_back(llvmtype(sst->biggest));
+		} else {
+			fields.reserve(sst->fields.size());
+			for (size_t i = 0, n = sst->fields.size(); i < n; ++i)
+				fields.push_back(llvmtype(sst->fields[i].type));
+		}
 
 		StructType *structty = StructType::get(LLGC, fields);
 
@@ -706,7 +711,8 @@ void llvm_backend_t::codegen_decl_stmt(decl_stmt_t *stmt)
 		break;
 	}
 	default:
-		CRAWL_QASSERT(!"fail");
+		break;
+		//CRAWL_QASSERT(!"fail");
 	}
 }
 
@@ -1303,6 +1309,24 @@ Value *llvm_backend_t::codegen_compound_lit(compound_lit_t *e)
 	return ir->CreateLoad(addr);
 }
 
+Value *llvm_backend_t::codegen_union_cast(selector_expr_t *e, Value *addr)
+{
+	stype_t *t = e->expr->vst.stype;
+	struct_stype_t *sst;
+	if (IS_STYPE_POINTER(t))
+		sst = (struct_stype_t*)((pointer_stype_t*)t->end_type())->points_to;
+	else
+		sst = (struct_stype_t*)t->end_type();
+
+	if (sst->biggest == sst->fields[e->idx].type)
+		return addr;
+
+	const Type *ty = llvmtype(sst->fields[e->idx].type);
+	std::vector<const Type*> fields(1, ty);
+	ty = StructType::get(LLGC, fields)->getPointerTo();
+	return ir->CreateBitCast(addr, ty);
+}
+
 Value *llvm_backend_t::codegen_expr_addr(node_t *expr)
 {
 	switch (expr->type) {
@@ -1339,6 +1363,15 @@ Value *llvm_backend_t::codegen_expr_addr(node_t *expr)
 			addr = codegen_expr_value(e->expr);
 		else
 			addr = codegen_expr_addr(e->expr);
+
+		if (IS_STYPE_UNION(t) ||
+		    (IS_STYPE_POINTER(t) &&
+		     IS_STYPE_UNION(((pointer_stype_t*)t->end_type())->points_to)))
+		{
+			addr = codegen_union_cast(e, addr);
+			return ir->CreateConstInBoundsGEP2_32(addr, 0, 0);
+		}
+
 		return ir->CreateConstInBoundsGEP2_32(addr, 0, e->idx);
 	}
 	case node_t::INDEX_EXPR:

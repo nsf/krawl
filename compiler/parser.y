@@ -325,6 +325,9 @@ type(T) ::= ident(I).                         { T = I; }
 type(T) ::= STRUCT(TOK) LCURLY(L) ofield_semi_list_and_osemi(FL) RCURLY(R). {
 	T = new struct_type_t(FL, TOK, L, R);	
 }
+type(T) ::= UNION(TOK) LCURLY(L) ofield_semi_list_and_osemi(FL) RCURLY(R). {
+	T = new struct_type_t(FL, TOK, L, R);	
+}
 type(T) ::= FUNC(TOK) LPAREN oargs_comma_list(A) RPAREN func_results(R). {
 	T = new func_type_t(A, R, TOK);
 }

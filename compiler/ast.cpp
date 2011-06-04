@@ -1321,7 +1321,8 @@ int nametype_t::classify()
 //------------------------------------------------------------------------------
 
 struct_type_t::struct_type_t(field_vector_t *f, token_t *t, token_t *l, token_t *r):
-	node_t(node_t::STRUCT_TYPE), pos(t->pos), pos_lcb(l->pos), pos_rcb(r->pos)
+	node_t(node_t::STRUCT_TYPE), tok(t->type),
+	pos(t->pos), pos_lcb(l->pos), pos_rcb(r->pos)
 {
 	if (f) {
 		fields.swap(*f);
