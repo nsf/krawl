@@ -1457,8 +1457,11 @@ Value *llvm_backend_t::codegen_expr_value(node_t *expr)
 Value *llvm_backend_t::codegen_load(Value *addr, stype_t *ty)
 {
 	// we can't dereference functions
-	if (IS_STYPE_FUNC(ty))
+	if (IS_STYPE_FUNC(ty)) {
+		if (isa<PointerType>(cast<PointerType>(addr->getType())->getElementType()))
+			return ir->CreateLoad(addr);
 		return addr;
+	}
 
 	Value *v = ir->CreateLoad(addr);
 	if (IS_STYPE_BOOL(ty))
