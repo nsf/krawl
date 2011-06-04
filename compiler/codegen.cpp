@@ -1288,7 +1288,11 @@ Value *llvm_backend_t::codegen_call_expr(call_expr_t *e)
 		}
 	}
 
-	return ir->CreateCall(func, args.begin(), args.end());
+	Value *v = ir->CreateCall(func, args.begin(), args.end());
+	// TODO: hack?
+	if (fst->results.size() == 1 && IS_STYPE_BOOL(fst->results[0]))
+		v = ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
+	return v;
 }
 
 Value *llvm_backend_t::codegen_compound_lit(compound_lit_t *e)
