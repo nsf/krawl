@@ -386,7 +386,7 @@ void llvm_backend_t::codegen_MRV(std::vector<Value*> *values,
 	call_expr_t *callexpr = is_call_expr(expr);
 	CRAWL_QASSERT(callexpr != 0);
 	CRAWL_QASSERT(IS_STYPE_FUNC(callexpr->expr->vst.stype));
-	func_stype_t *fst = (func_stype_t*)callexpr->expr->vst.stype;
+	func_stype_t *fst = (func_stype_t*)callexpr->expr->vst.stype->end_type();
 
 	Value *mrv = codegen_expr_value(callexpr);
 	values->reserve(fst->results.size());

@@ -3109,8 +3109,8 @@ stype_t *pass2_t::typecheck_var_init(node_t *init, int index)
 			vst = c->vst;
 
 		// our type
-		CRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
-		return ((func_stype_t*)vst.stype)->results[index];
+		CRAWL_QASSERT(IS_STYPE_FUNC(vst.stype));
+		return ((func_stype_t*)vst.stype->end_type())->results[index];
 	}
 
 	value_stype_t vst = typecheck_expr(init);
