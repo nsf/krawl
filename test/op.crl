@@ -57,7 +57,8 @@ func main(argc int, argv **byte) int
 		a := 50;
 		b := 50.(uint8);
 		c := 50.(uint16);
-		assert(^a == -51 && ^b == 205 && ^c == 65485);
+		a, b, c = ^a, ^b, ^c;
+		assert(a == -51 && b == 205 && c == 65485);
 	}
 	return 0;
 }

@@ -81,7 +81,8 @@ struct llvm_backend_t {
 					   stype_t *lt, stype_t *rt,
 					   int tok);
 	Value *codegen_implicit_conversion_up(Value *v, stype_t *to);
-	Value *codegen_implicit_conversion_down(Value *v, stype_t *to);
+	Value *codegen_implicit_conversion_down(Value *v, stype_t *from,
+						stype_t *to);
 	Value *codegen_assignment(Value *expr, stype_t *from, stype_t *to);
 	Value *codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 				       stype_t *lt, stype_t *rt, int tok);
@@ -220,6 +221,8 @@ Constant *llvm_backend_t::llvmconst(value_t *val, const Type *ty)
 			Constant *c = ConstantInt::get(ity, i, 10);
 			return ConstantExpr::getIntToPtr(c, ty);
 		}
+		if (ty->getPrimitiveSizeInBits() < 32)
+			ty = IntegerType::get(LLGC, 32);
 		return ConstantInt::get(cast<IntegerType>(ty), i, 10);
 	}
 	case VALUE_FLOAT:
@@ -607,12 +610,13 @@ void llvm_backend_t::codegen_incdec_stmt(incdec_stmt_t *stmt)
 void llvm_backend_t::codegen_compound_assign_stmt(assign_stmt_t *stmt)
 {
 	Value *addr = codegen_expr_addr(stmt->lhs[0]);
-	Value *l = ir->CreateLoad(addr);
+	Value *l = codegen_load(addr, stmt->lhs[0]->vst.stype);
 	Value *r = codegen_expr_value(stmt->rhs[0]);
 	stype_t *lt = stmt->lhs[0]->vst.stype;
 	stype_t *rt = stmt->rhs[0]->vst.stype;
 	int tok = compound_assignment_to_binary_tok(stmt->tok);
 	Value *result = codegen_binary_expr_raw(l, r, lt, lt, rt, tok);
+	result = codegen_assignment(result, lt, lt);
 	ir->CreateStore(result, addr);
 }
 
@@ -846,10 +850,9 @@ Value *llvm_backend_t::codegen_assignment(Value *expr, stype_t *from, stype_t *t
 		return ir->CreateZExt(expr, Type::getInt8Ty(LLGC));
 
 	if (IS_STYPE_NUMBER(from) && IS_STYPE_NUMBER(to)) {
-		if (from->bits() < to->bits())
+		if (from->bits() < to->bits() && to->bits() > 32)
 			return codegen_implicit_conversion_up(expr, to);
-		else if (from->bits() > to->bits())
-			return codegen_implicit_conversion_down(expr, to);
+		return codegen_implicit_conversion_down(expr, from, to);
 	}
 	return expr;
 }
@@ -868,12 +871,19 @@ Value *llvm_backend_t::codegen_implicit_conversion_up(Value *v, stype_t *to)
 	return v;
 }
 
-Value *llvm_backend_t::codegen_implicit_conversion_down(Value *v, stype_t *to)
+Value *llvm_backend_t::codegen_implicit_conversion_down(Value *v, stype_t *from,
+							stype_t *to)
 {
-	if (IS_STYPE_FLOAT(to))
+	if (IS_STYPE_FLOAT(to) && to->bits() < from->bits())
 		return ir->CreateFPTrunc(v, llvmtype(to));
-	else if (IS_STYPE_INT(to))
-		return ir->CreateTrunc(v, llvmtype(to));
+
+	if (IS_STYPE_INT(to)) {
+		if (to->bits() < 32)
+			return ir->CreateTrunc(v, llvmtype(to));
+
+		if (to->bits() < from->bits())
+			return ir->CreateTrunc(v, llvmtype(to));
+	}
 	return v;
 }
 
@@ -1141,7 +1151,7 @@ Value *llvm_backend_t::codegen_unary_expr(unary_expr_t *e)
 		CRAWL_QASSERT(IS_STYPE_BOOL(e->expr->vst.stype));
 		return ir->CreateNot(expr);
 	case TOK_TIMES:
-		return ir->CreateLoad(expr);
+		return codegen_load(expr, e->vst.stype);
 	}
 
 	CRAWL_QASSERT(!"unreachable");
@@ -1497,8 +1507,15 @@ Value *llvm_backend_t::codegen_load(Value *addr, stype_t *ty)
 	}
 
 	Value *v = ir->CreateLoad(addr);
+
 	if (IS_STYPE_BOOL(ty))
-		v = ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
+		return ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
+	if (IS_STYPE_INT(ty)) {
+		int_stype_t *ist = (int_stype_t*)ty->end_type();
+		if (ist->size < 32)
+			return ir->CreateZExt(v, Type::getInt32Ty(LLGC));
+		return v;
+	}
 	return v;
 }
 
