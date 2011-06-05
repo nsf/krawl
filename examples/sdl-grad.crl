@@ -6,9 +6,9 @@ func put_pixel(screen *SDL.SDL_Surface, x, y, r, g, b int)
 		y * screen.pitch +
 		x * screen.format.BytesPerPixel;
 
-	p[0] = r.(byte);
-	p[1] = g.(byte);
-	p[2] = b.(byte);
+	p[0] = r;
+	p[1] = g;
+	p[2] = b;
 }
 
 func fill(screen *SDL.SDL_Surface)

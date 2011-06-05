@@ -80,6 +80,7 @@ struct llvm_backend_t {
 	void codegen_arithmetic_conversion(Value **l, Value **r,
 					   stype_t *lt, stype_t *rt,
 					   int tok);
+	Value *codegen_varargs_promotion(Value *v, stype_t *vtype);
 	Value *codegen_implicit_conversion_up(Value *v, stype_t *to);
 	Value *codegen_implicit_conversion_down(Value *v, stype_t *from,
 						stype_t *to);
@@ -95,6 +96,7 @@ struct llvm_backend_t {
 	Value *codegen_union_cast(selector_expr_t *e, Value *addr);
 	Value *codegen_expr_addr(node_t *e);
 	Value *codegen_expr_value(node_t *e);
+	Value *codegen_post_load(Value *v, stype_t *ty);
 	Value *codegen_load(Value *addr, stype_t *ty);
 
 	Value *codegen_cexpr_value(node_t *e);
@@ -857,11 +859,23 @@ Value *llvm_backend_t::codegen_assignment(Value *expr, stype_t *from, stype_t *t
 	return expr;
 }
 
+Value *llvm_backend_t::codegen_varargs_promotion(Value *v, stype_t *vtype)
+{
+	if (IS_STYPE_FLOAT(vtype) && vtype->bits() < 64) {
+		return ir->CreateFPExt(v, Type::getDoubleTy(LLGC));
+	}
+	if (IS_STYPE_INT(vtype) && vtype->bits() < 32) {
+		return ir->CreateSExt(v, IntegerType::get(LLGC, 32));
+	}
+	return v;
+}
+
 Value *llvm_backend_t::codegen_implicit_conversion_up(Value *v, stype_t *to)
 {
 	if (IS_STYPE_FLOAT(to)) {
 		return ir->CreateFPExt(v, llvmtype(to));
-	} else if (IS_STYPE_INT(to)) {
+	}
+	if (IS_STYPE_INT(to)) {
 		int_stype_t *ist = (int_stype_t*)to->end_type();
 		if (ist->is_signed)
 			return ir->CreateSExt(v, llvmtype(to));
@@ -1315,19 +1329,19 @@ Value *llvm_backend_t::codegen_call_expr(call_expr_t *e)
 
 	// apply assignment if possible
 	for (size_t i = 0, n = args.size(); i < n; ++i) {
-		// if it's a varargs call, we can't figure out the type
-		// TODO: but we should probably apply type promotion
-		// here as C does
 		if (i < fst->args.size()) {
 			args[i] = codegen_assignment(args[i], argtypes[i],
 						     fst->args[i]);
+		} else {
+			// if it's a varargs call, we can't figure out the
+			// type, do C-like type promotion instead
+			args[i] = codegen_varargs_promotion(args[i], argtypes[i]);
 		}
 	}
 
 	Value *v = ir->CreateCall(func, args.begin(), args.end());
-	// TODO: hack?
-	if (fst->results.size() == 1 && IS_STYPE_BOOL(fst->results[0]))
-		v = ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
+	if (fst->results.size() == 1)
+		v = codegen_post_load(v, fst->results[0]);
 	return v;
 }
 
@@ -1497,6 +1511,19 @@ Value *llvm_backend_t::codegen_expr_value(node_t *expr)
 	return codegen_load(addr, expr->vst.stype);
 }
 
+Value *llvm_backend_t::codegen_post_load(Value *v, stype_t *ty)
+{
+	if (IS_STYPE_BOOL(ty))
+		return ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
+	if (IS_STYPE_INT(ty)) {
+		int_stype_t *ist = (int_stype_t*)ty->end_type();
+		if (ist->size < 32)
+			return ir->CreateZExt(v, Type::getInt32Ty(LLGC));
+		return v;
+	}
+	return v;
+}
+
 Value *llvm_backend_t::codegen_load(Value *addr, stype_t *ty)
 {
 	// we can't dereference functions
@@ -1507,16 +1534,7 @@ Value *llvm_backend_t::codegen_load(Value *addr, stype_t *ty)
 	}
 
 	Value *v = ir->CreateLoad(addr);
-
-	if (IS_STYPE_BOOL(ty))
-		return ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
-	if (IS_STYPE_INT(ty)) {
-		int_stype_t *ist = (int_stype_t*)ty->end_type();
-		if (ist->size < 32)
-			return ir->CreateZExt(v, Type::getInt32Ty(LLGC));
-		return v;
-	}
-	return v;
+	return codegen_post_load(v, ty);
 }
 
 Value *llvm_backend_t::codegen_cexpr_value(node_t *e)

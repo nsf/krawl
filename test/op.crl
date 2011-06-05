@@ -37,7 +37,7 @@ func main(argc int, argv **byte) int
 		pi := 3.1415;
 		halfpi := pi / 2;
 		// TODO: varargs type promotion
-		stdio.printf("%f / 2 = %f\n", pi.(double), halfpi.(double));
+		stdio.printf("%f / 2 = %f\n", pi, halfpi);
 	}
 	{
 		// some logic operations

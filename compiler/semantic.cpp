@@ -876,6 +876,9 @@ bool assignable(stype_t *from, stype_t *to)
 	if (IS_STYPE_BOOL(from) && IS_STYPE_BOOL(to))
 		return true;
 
+	if (IS_STYPE_FLOAT(from) && IS_STYPE_FLOAT(to))
+		return true;
+
 	if (IS_STYPE_INT(from) && IS_STYPE_INT(to))
 		return true;
 
