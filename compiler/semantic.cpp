@@ -336,6 +336,22 @@ int array_stype_t::bits()
 
 //------------------------------------------------------------------------------
 
+stype_t *get_int_type(size_t bits)
+{
+	switch (bits) {
+	case 8:
+		return builtin_named_stypes[BUILTIN_INT8];
+	case 16:
+		return builtin_named_stypes[BUILTIN_INT16];
+	case 32:
+		return builtin_named_stypes[BUILTIN_INT32];
+	case 64:
+		return builtin_named_stypes[BUILTIN_INT64];
+	}
+
+	CRAWL_QASSERT(!"unreachable");
+}
+
 size_t stype_hash(stype_t *t)
 {
 	if (IS_STYPE_BUILTIN(t)) {
@@ -496,16 +512,31 @@ stype_t *numeric_binop_compat(stype_t *a, stype_t *b)
 	if (IS_STYPE_INT(a) && IS_STYPE_INT(b)) {
 		int_stype_t *ia = (int_stype_t*)a->end_type();
 		int_stype_t *ib = (int_stype_t*)b->end_type();
-		if ((ia->is_signed && ib->is_signed) ||
-		    (!ia->is_signed && !ib->is_signed))
-		{
-			return biggest_stype(a, b);
+		if (ia->size == ib->size) {
+			// both are signed or unsigned, just return a
+			if (ia->is_signed == ib->is_signed)
+				return a;
+
+			// return the one that is signed
+			if (ia->is_signed)
+				return a;
+			return b;
 		}
 
-		if (ia->is_signed && ia->size > ib->size)
+		// make ia biggest
+		if (ia->size < ib->size)
+			std::swap(ia, ib);
+
+		// first case: int32 OP (u)int16
+		if (ia->is_signed)
 			return a;
-		if (ib->is_signed && ib->size > ia->size)
-			return b;
+
+		// second case: uint32 OP uint16
+		if (!ib->is_signed)
+			return a;
+
+		// third case: uint32 OP int16
+		return get_int_type(ia->size);
 	}
 
 	return 0;
@@ -845,25 +876,8 @@ bool assignable(stype_t *from, stype_t *to)
 	if (IS_STYPE_BOOL(from) && IS_STYPE_BOOL(to))
 		return true;
 
-	if (IS_STYPE_INT(from)) {
-		int_stype_t *ifrom = (int_stype_t*)from->end_type();
-		int_stype_t *ito = (int_stype_t*)to->end_type();
-
-		if (ifrom->is_signed) {
-			// from intX to intY (Y >= X)
-			if (ito->is_signed && ito->size >= ifrom->size)
-				return true;
-			return false;
-		} else {
-			// from uintX to intY (Y >= X)
-			if (ito->is_signed && ito->size > ifrom->size)
-				return true;
-			if (!ito->is_signed && ito->size >= ifrom->size)
-				return true;
-
-			return false;
-		}
-	}
+	if (IS_STYPE_INT(from) && IS_STYPE_INT(to))
+		return true;
 
 	// string literal to *int8 type
 	if (IS_STYPE_STRING(from) && IS_STYPE_POINTER(to)) {

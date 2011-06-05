@@ -78,8 +78,10 @@ struct llvm_backend_t {
 	void codegen_stmt(node_t *stmt);
 
 	void codegen_arithmetic_conversion(Value **l, Value **r,
-					   stype_t *lt, stype_t *rt, int tok);
-	Value *codegen_implicit_conversion(Value *v, stype_t *to);
+					   stype_t *lt, stype_t *rt,
+					   int tok);
+	Value *codegen_implicit_conversion_up(Value *v, stype_t *to);
+	Value *codegen_implicit_conversion_down(Value *v, stype_t *to);
 	Value *codegen_assignment(Value *expr, stype_t *from, stype_t *to);
 	Value *codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 				       stype_t *lt, stype_t *rt, int tok);
@@ -843,12 +845,16 @@ Value *llvm_backend_t::codegen_assignment(Value *expr, stype_t *from, stype_t *t
 	if (IS_STYPE_BOOL(to))
 		return ir->CreateZExt(expr, Type::getInt8Ty(LLGC));
 
-	if (from->bits() < to->bits())
-		return codegen_implicit_conversion(expr, to);
+	if (IS_STYPE_NUMBER(from) && IS_STYPE_NUMBER(to)) {
+		if (from->bits() < to->bits())
+			return codegen_implicit_conversion_up(expr, to);
+		else if (from->bits() > to->bits())
+			return codegen_implicit_conversion_down(expr, to);
+	}
 	return expr;
 }
 
-Value *llvm_backend_t::codegen_implicit_conversion(Value *v, stype_t *to)
+Value *llvm_backend_t::codegen_implicit_conversion_up(Value *v, stype_t *to)
 {
 	if (IS_STYPE_FLOAT(to)) {
 		return ir->CreateFPExt(v, llvmtype(to));
@@ -859,6 +865,15 @@ Value *llvm_backend_t::codegen_implicit_conversion(Value *v, stype_t *to)
 		else
 			return ir->CreateZExt(v, llvmtype(to));
 	}
+	return v;
+}
+
+Value *llvm_backend_t::codegen_implicit_conversion_down(Value *v, stype_t *to)
+{
+	if (IS_STYPE_FLOAT(to))
+		return ir->CreateFPTrunc(v, llvmtype(to));
+	else if (IS_STYPE_INT(to))
+		return ir->CreateTrunc(v, llvmtype(to));
 	return v;
 }
 
@@ -873,11 +888,22 @@ void llvm_backend_t::codegen_arithmetic_conversion(Value **l, Value **r,
 	if (lt->bits() == rt->bits())
 		return;
 
+	// hello, wonderer, looking for a way to contribute? fix this crappy
+	// code down below
 	stype_t *big = biggest_stype(lt, rt);
 	Value *v = (lt == big) ? *r : *l;
 	stype_t *small = (lt == big) ? rt : lt;
 
-	v = codegen_implicit_conversion(v, big);
+	if (IS_STYPE_INT(big) && IS_STYPE_INT(small)) {
+		// check special case: uint32 OP int16
+		// it needs to be converted to int32
+		int_stype_t *ibig   = (int_stype_t*)big->end_type();
+		int_stype_t *ismall = (int_stype_t*)small->end_type();
+		if (!ibig->is_signed && ismall->is_signed)
+			big = get_int_type(ibig->size);
+	}
+
+	v = codegen_implicit_conversion_up(v, big);
 
 	if (lt == big)
 		*r = v;

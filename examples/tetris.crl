@@ -174,16 +174,16 @@ func NewTetrisFigure(spec *byte, color TetrisBlockColor) (f *TetrisFigure)
 
 func NewRandomTetrisFigure() (f *TetrisFigure)
 {
-	ri := stdlib.rand().(uint) % (sizeof(specs)/sizeof(specs[0]));
+	ri := stdlib.rand() % (sizeof(specs)/sizeof(specs[0]));
 	f = NewTetrisFigure(specs[ri], specColors[ri]);
 	f.class = ri;
 }
 
 func NewRandomTetrisFigureNot(templ *TetrisFigure) (f *TetrisFigure)
 {
-	var ri uint;
+	var ri int;
 	for {
-		ri = stdlib.rand().(uint) % (sizeof(specs)/sizeof(specs[0]));
+		ri = stdlib.rand() % (sizeof(specs)/sizeof(specs[0]));
 		if ri != templ.class {
 			break;
 		}
@@ -233,18 +233,18 @@ func TetrisFigureGetRotNum(f *TetrisFigure, rotate RotateFunc) int
 	// of valid rotation counts (like: [3, 4] or [1, 2, 3, 4])
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			bmask := 0.(uint);
+			bmask := 0;
 			if !f.blocks[y*4 + x].filled {
 				continue
 			}
 			bx, by := x - f.cx, y - f.cy;
-			for i := 0.(uint); i < 4; i++ {
+			for i := 0; i < 4; i++ {
 				bx, by = rotate(bx, by);
 				rbx, rby := f.cx + bx, f.cy + by;
 
 				// check whether a rotation is valid an record it
 				if rbx >= 0 && rbx <= 4 && rby >= 0 && rby <= 4 {
-					bmask |= 1 << i;
+					bmask |= 1 << i.(uint);
 				}
 			}
 
@@ -316,8 +316,8 @@ func TetrisFigureDraw(f *TetrisFigure, ox, oy int)
 //-------------------------------------------------------------------------
 
 type TetrisField struct	{
-	width int;
-	height int;
+	width uint;
+	height uint;
 	blocks *TetrisBlock;
 };
 
@@ -326,7 +326,7 @@ func NewTetrisField(w, h int) (f *TetrisField)
 	f = stdlib.malloc(sizeof(type TetrisField));
 	f.width = w;
 	f.height = h;
-	f.blocks = stdlib.malloc(sizeof(type TetrisBlock) * w.(uint) * h.(uint));
+	f.blocks = stdlib.malloc(sizeof(type TetrisBlock) * w * h);
 	TetrisFieldClear(f);
 }
 

@@ -1241,6 +1241,7 @@ struct array_stype_t : stype_t {
 // type functions
 //------------------------------------------------------------------------------
 
+stype_t *get_int_type(size_t bits);
 size_t stype_hash(stype_t *t);
 void check_type_for_size_loops(diagnostic_t *diag, named_stype_t *t);
 void fix_structs_alignment(struct_stype_t *sst);
