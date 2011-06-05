@@ -98,12 +98,7 @@ func BlockDraw(x, y int, color TetrisBlockColor)
 	cfull := SDL.SDL_MapRGB(screen.format,
 				color.r, color.g, color.b);
 
-	var r SDL.SDL_Rect = {
-		x.(SDL.Sint16),
-		y.(SDL.Sint16),
-		blockSize,
-		blockSize
-	};
+	r := {x, y, blockSize, blockSize}.(SDL.SDL_Rect);
 	SDL.SDL_FillRect(screen, &r, chalf);
 
 	r.x += smallBlockOffset;
