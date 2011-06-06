@@ -2,3 +2,5 @@ build
 frontend/parser.out
 frontend/lemon/lemon
 *.swp
+.waf*
+.lock*

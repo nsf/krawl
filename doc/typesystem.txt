@@ -1,0 +1,197 @@
+Type system
+===========
+
+Crawl's type system mostly follows C's type system, but there are some differences.
+
+Types
+-----
+A list of predefined primitive types:
+[cols="1,4,1"]
+|===========================================================================
+| Type name | Description                                    | Default value
+| `void`    | No type                                        | `-`
+| `bool`    | Boolean type                                   | `false`
+| `byte`    | Alias to uint8                                 | `0`
+| `uint8`   | Unsigned 8 bits integer                        | `0`
+| `int8`    | Signed 8 bits integer                          | `0`
+| `uint16`  | Unsigned 16 bits integer                       | `0`
+| `int16`   | Signed 16 bits integer                         | `0`
+| `uint`    | Alias to uint32                                | `0`
+| `int`     | Alias to int32                                 | `0`
+| `uint32`  | Unsigned 32 bits integer                       | `0`
+| `int32`   | Signed 32 bits integer                         | `0`
+| `uint64`  | Unsigned 64 bits integer                       | `0`
+| `int64`   | Signed 64 bits integer                         | `0`
+| `float`   | Alias to float32                               | `0.0`
+| `double`  | Alias to float64                               | `0.0`
+| `float32` | Single-precision 32 bits floating point number | `0.0`
+| `float64` | Double-precision 64 bits floating point number | `0.0`
+|===========================================================================
+
+NOTE: Predefined types are not keywords, you can have a local variable named
+`int` if you want to.
+
+A list of aggregate (composite) types:
+[cols="1,5"]
+|===========================================================================
+| Name     | Syntax
+| Pointer  | `*T`
+| Array    | `[N]T`
+| Struct   | `struct { field1 T; field2 T; ...; fieldN T; }`
+| Union    | `union { field1 T; field2 T; ...; fieldN T; }`
+| Function | `func(arg1 T, arg2 T) T`
+|===========================================================================
+
+Defining new types
+------------------
+A new type can be defined using type declaration. It has this form: "`type
+<NAME> <TYPE>;`". Few examples:
+
+[source,crawl]
+----------------------------------------------------------------------------
+type Size uint;
+type Person struct {
+	name *byte;
+	address Address;
+	age uint;
+};
+type StrCmpFunc func(a, b *byte) int;
+type Vector3 [3]float;
+----------------------------------------------------------------------------
+
+You can also define multiple types at once, using this syntax:
+
+[source,crawl]
+----------------------------------------------------------------------------
+type (
+	Size uint;
+	Person struct {
+		name *byte;
+		address Address;
+		age uint;
+	};
+	StrCmpFunc func(a, b *byte) int;
+	Vector3 [3]float;
+)
+----------------------------------------------------------------------------
+
+Implicit conversions
+--------------------
+There are several cases when one type gets converted into another implicitly.
+
+Assignment
+~~~~~~~~~~
+When you're assigning a result of an expression to a variable or passing an
+argument to a function or returning a value from a function. It's all is
+considered as assignment. During that assignment, implicit conversion rules are
+applied, here they are:
+
+1. Any integer type can be converted to any integer type.
+2. Any floating point type can be converted to any floating point type.
+3. Any pointer type (including function pointer type) can be converted to `*void`.
+4. `*void` can be converted to any pointer type (including function pointer type).
+5. A pointer to an array type can be converted to a pointer to the array's
+   element type.
+
+Some examples:
+
+[source,crawl]
+----------------------------------------------------------------------------
+var ip *int;
+var vp *void = ip;
+
+var vec [3]float;
+var pfloat *float = &vec;
+
+var a uint64;
+var b int16 = a;
+
+func foo() byte {
+	var i int;
+	return i; // int truncated to byte
+}
+
+func bar(a int8, b int16, c uint32);
+
+// somewhere in the code
+var x int;
+bar(x, x, x);
+----------------------------------------------------------------------------
+
+Arithmetic
+~~~~~~~~~~
+Most of the binary expression operators require both arguments of the same
+type. Therefore it is necessary to find a common type and to cast both operands
+to that type before evaluation. These are the rules for finding a common type
+of a binary expression:
+
+1. If both operands are floating point types, the common type of a binary
+   expression is the biggest floating point type amongst these two.
+2. If both operands are integer types, the common type of a binary expression
+   is found using these rules:
++
+- If both are signed or both are unsigned, the smaller type is converted to the larger.
+- If the signed type is larger or the same size as the unsigned type, the
+  unsigned type is converted to the signed type.
+- If the unsigned type is larger than the signed type, both are converted to
+  a signed type as large as unsigned type.
+
+Some examples:
+
+[source,crawl]
+----------------------------------------------------------------------------
+var a float32;
+var b float64;
+var c = a + b; // a is converted to float64
+
+var a int;
+var b uint;
+var c = a - b; // b is converted to int32 (int is an alias to int32)
+
+var a int32;
+var b uint8;
+var c = a * b; // b is converted to int32
+
+var a uint32;
+var b int16;
+var c = a / b; // a and b are converted to int32
+----------------------------------------------------------------------------
+
+Resulting type of an expression
+-------------------------------
+The resulting type of an expression is the same as the common type in all
+cases, except these ones:
+
+- For comparison operators `==`, `!=`, `>`, `>=`, `<` and `<=` the resulting
+  type is always `bool`.
+- For shift operators `<<` and `>>` the resulting type is the type of the left
+  operand.
+- The resulting type of a pointer difference is an integer type as large as the
+  pointer type.
+- The resulting type of other kinds of pointer arithmetic is the pointer type.
+
+Integer promotion
+-----------------
+In Crawl integer promotion rule applies silently behind the scenes when doing
+expressions evaluation with smaller than 32 bits operands. All of these
+(`uint8`, `int8`, `uint16`, `int16`) types are promoted to `int32`. It prevents
+some of the overflow errors, but keep in mind that integer promotion doesn't
+affect the resulting type of an expression. Few good examples:
+
+[source,crawl]
+----------------------------------------------------------------------------
+var a, b uint8 = 250, 200;
+var average = (a + b) / 2; // the result is 225, average's type is uint8
+
+type Packet {
+	size uint8;
+};
+
+func SizeRequired(p1, p2, p3 *Packet) int
+{
+	// this expression doesn't overflow and the result can be bigger than
+	// uint8 can hold, because it is assigned to an int at the end
+	return p1.size + p2.size + p3.size;
+}
+----------------------------------------------------------------------------
+

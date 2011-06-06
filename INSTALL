@@ -2,7 +2,4 @@ This will install crawlc to your home dir at ~/crawlc
 Executable will be available as ~/crawlc/bin/crawlc
 Add ~/crawlc/bin to your PATH
 
-mkdir build
-cd build
-cmake -DCMAKE_INSTALL_PREFIX=~/crawlc -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RELEASE ..
-make -j4 install
+CXX=clang++ ./waf configure --prefix=~/crawlc install
