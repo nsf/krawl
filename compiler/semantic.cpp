@@ -177,12 +177,13 @@ std::string string_stype_t::to_string()
 //------------------------------------------------------------------------------
 
 named_stype_t::named_stype_t():
-	stype_t(STYPE_NAMED), real(0), decl(0), restored(false)
+	stype_t(STYPE_NAMED), prefix(""), real(0), decl(0), restored(false)
 {
 }
 
 named_stype_t::named_stype_t(const char *name, stype_t *real):
-	stype_t(STYPE_NAMED), name(name), real(real), decl(0), restored(false)
+	stype_t(STYPE_NAMED), prefix(""), name(name), real(real),
+	decl(0), restored(false)
 {
 	if (real)
 		assign_real(real);
@@ -1262,9 +1263,11 @@ void free_tracked_stypes(stype_tracker_t *tt)
 		delete (*tt)[i];
 }
 
-stype_t *new_named_stype(stype_tracker_t *tt, const char *name, stype_t *real)
+stype_t *new_named_stype(stype_tracker_t *tt, const char *prefix,
+			 const char *name, stype_t *real)
 {
 	named_stype_t *nt = new named_stype_t;
+	nt->prefix = prefix;
 	nt->name = name;
 	nt->real = real;
 	tt->push_back(nt);
@@ -3942,7 +3945,10 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 
 		// Create named type before 'real' type is actually known. I
 		// need that because it is possible to have recursive types.
-		tsd->stype = new_named_stype(ttracker, tsd->spec->name->val.c_str(), 0);
+		tsd->stype = new_named_stype(ttracker,
+					     uid.c_str(),
+					     tsd->spec->name->val.c_str(),
+					     0);
 		named_stype_t *nst = tsd->stype->as_named();
 		nst->decl = tsd;
 

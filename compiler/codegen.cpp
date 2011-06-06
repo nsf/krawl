@@ -116,6 +116,9 @@ struct llvm_backend_t {
 	void codegen_top_sdecl(sdecl_t *d);
 	void codegen_top_sdecls(std::vector<const char*> *pkgdecls);
 
+	void compile_exe(TargetMachine *machine, PassManager *pm);
+	void compile_lib(TargetMachine *machine, PassManager *pm);
+
 	// Interface
 	void pass(std::vector<const char*> *pkgdecls);
 };
@@ -1808,15 +1811,59 @@ void llvm_backend_t::finalize_init_func()
 	ir_init_alloca_pt->eraseFromParent();
 }
 
+void llvm_backend_t::compile_exe(TargetMachine *machine, PassManager *pm)
+{
+
+	int fd;
+	SmallVector<char, 128> tmpfilename;
+	sys::fs::unique_file("obj-%%%%%%", fd, tmpfilename);
+	tmpfilename.push_back(0);
+	{
+		raw_fd_ostream tmpfile(fd, true);
+		formatted_raw_ostream out(tmpfile);
+		if (machine->addPassesToEmitFile(*pm, out,
+						 TargetMachine::CGFT_ObjectFile,
+						 CodeGenOpt::Default))
+		{
+			DIE("failed to add file emission passes");
+		}
+		pm->run(*module);
+	}
+
+	std::string libs_str;
+	for (size_t i = 0, n = libs->size(); i < n; ++i) {
+		cppsprintf(&libs_str, "-l%s ", libs->at(i));
+	}
+
+	std::string cmd;
+	cppsprintf(&cmd, "clang -o %s %s -L. %s",
+		   out_name, &tmpfilename[0], libs_str.c_str());
+	system(cmd.c_str());
+	unlink(&tmpfilename[0]);
+}
+
+void llvm_backend_t::compile_lib(TargetMachine *machine, PassManager *pm)
+{
+	FILE *f = fopen(out_name, "wb");
+	if (!f)
+		DIE("failed to open file for writing: %s", out_name);
+
+	{
+		raw_fd_ostream outstream(fileno(f), true);
+		formatted_raw_ostream out(outstream);
+		if (machine->addPassesToEmitFile(*pm, out,
+						 TargetMachine::CGFT_ObjectFile,
+						 CodeGenOpt::Default))
+		{
+			DIE("failed to add file emission passes");
+		}
+		pm->run(*module);
+	}
+	fclose(f);
+}
+
 void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 {
-	TimerGroup t_group("LLVM Backend");
-
-#define START_TIMER(var, name) Timer var(name, t_group); if (time) var.startTimer()
-#define STOP_TIMER(var) if (time) var.stopTimer();
-
-	START_TIMER(t_ir_gen, "IR Gen");
-
 	module = new Module("Main", LLGC);
 	ir = 0;
 	ir_alloca = 0;
@@ -1830,16 +1877,10 @@ void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 	codegen_top_sdecls(pkgdecls);
 	finalize_init_func();
 
-	STOP_TIMER(t_ir_gen);
-
 	if (dump)
 		module->dump();
-
-	START_TIMER(t_verify, "Module Verify");
 	verifyModule(*module);
-	STOP_TIMER(t_verify);
 
-	START_TIMER(t_codegen, "Codegen");
 	// CODEGEN
 	InitializeNativeTarget();
 	InitializeNativeTargetAsmPrinter();
@@ -1847,49 +1888,19 @@ void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 	std::string error;
 	std::string triple = sys::getHostTriple();
 	const Target *target = TargetRegistry::lookupTarget(triple, error);
-	if (!target) {
-		fprintf(stderr, "%s\n", error.c_str());
-		return;
-	}
+	if (!target)
+		DIE("%s\n", error.c_str());
 
 	TargetMachine *machine = target->createTargetMachine(triple, "");
-
 	PassManager *pm = new PassManager();
 	pm->add(new TargetData(*machine->getTargetData()));
 
-	int fd;
-	SmallVector<char, 128> tmpfilename;
-	sys::fs::unique_file("obj-%%%%%%", fd, tmpfilename);
-	tmpfilename.push_back(0);
-	{
-		raw_fd_ostream tmpfile(fd, true);
-		formatted_raw_ostream out(tmpfile);
-		if (machine->addPassesToEmitFile(*pm, out,
-						 TargetMachine::CGFT_ObjectFile,
-						 CodeGenOpt::Default))
-		{
-			fprintf(stderr, "fuck!\n");
-			return;
-		}
-		pm->run(*module);
+	if (uid.empty()) {
+		compile_exe(machine, pm);
+	} else {
+		compile_lib(machine, pm);
 	}
 
-	STOP_TIMER(t_codegen);
-
-	START_TIMER(t_link, "Link");
-
-	std::string libs_str;
-	for (size_t i = 0, n = libs->size(); i < n; ++i) {
-		cppsprintf(&libs_str, "-l%s ", libs->at(i));
-	}
-
-	std::string cmd;
-	cppsprintf(&cmd, "clang %s -o %s %s",
-		   libs_str.c_str(), out_name, &tmpfilename[0]);
-	system(cmd.c_str());
-	unlink(&tmpfilename[0]);
-
-	STOP_TIMER(t_link);
 }
 
 void pass3_t::pass(std::vector<const char*> *pkgdecls)

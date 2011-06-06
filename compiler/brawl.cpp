@@ -280,6 +280,16 @@ void brawl_stypes_t::save(FILE_writer_t *cout)
 	for (size_t i = 0, n = stypes.size(); i < n; ++i) {
 		stype_t *t = stypes[i];
 
+		if (IS_STYPE_NAMED(t)) {
+			const char *tprefix = t->as_named()->prefix;
+			if (prefix != tprefix) {
+				// let's introduce a new prefix first
+				cout->write_uint16(0xFFFF);
+				cout->write_string(tprefix);
+				prefix = tprefix;
+			}
+		}
+
 		// write type
 		cout->write_uint16(t->type);
 		if (IS_STYPE_NAMED(t))
@@ -298,15 +308,6 @@ void brawl_stypes_t::save(FILE_writer_t *cout)
 
 	clear();
 }
-
-#define READ_MSG(msg)							\
-	uint32_t size;							\
-	bool result = cin->ReadVarint32(&size);				\
-	if (!result) DIE("failed to read Varint32");			\
-	CodedInputStream::Limit l = cin->PushLimit(size);		\
-	result = msg.ParseFromCodedStream(cin);				\
-	if (!result) DIE("failed to parse " #msg);			\
-	cin->PopLimit(l)
 
 void brawl_stypes_t::deserialize_named(FILE_reader_t *cin)
 {
@@ -417,6 +418,10 @@ void brawl_stypes_t::deserialize_types(FILE_reader_t *cin, size_t n)
 {
 	for (size_t i = 0; i < n; ++i) {
 		uint16_t type = cin->read_uint16();
+		if (type == 0xFFFF) {
+			prefix = cin->read_string();
+			type = cin->read_uint16();
+		}
 		//printf("%d-------------------------------------\n", i);
 
 		if (type & STYPE_NAMED)
@@ -588,7 +593,7 @@ void brawl_module_t::save(FILE_writer_t *cout)
 void brawl_module_t::load(FILE_reader_t *cin)
 {
 	clear();
-	prefix = bdecls.btypes.prefix = cin->read_string();
+	prefix = cin->read_string();
 	package = cin->read_string();
 	bdecls.load(cin);
 	for (size_t i = 0, n = bdecls.sdecls.size(); i < n; ++i) {

@@ -1180,6 +1180,7 @@ struct string_stype_t : stype_t {
 //------------------------------------------------------------------------------
 
 struct named_stype_t : stype_t {
+	const char *prefix;
 	std::string name;
 	stype_t *real;
 
@@ -1280,7 +1281,8 @@ size_t size_from_array_or_compound(node_t *v);
 
 typedef std::vector<stype_t*> stype_tracker_t;
 void free_tracked_stypes(stype_tracker_t *tt);
-stype_t *new_named_stype(stype_tracker_t *tt, const char *name, stype_t *real);
+stype_t *new_named_stype(stype_tracker_t *tt, const char *module,
+			 const char *name, stype_t *real);
 stype_t *new_pointer_stype(stype_tracker_t *tt, stype_t *points_to);
 stype_t *new_func_stype(stype_tracker_t *tt,
 			stype_vector_t *args, stype_vector_t *results,
@@ -1675,6 +1677,7 @@ struct pass1_t {
 
 struct pass2_t {
 	// customizable by user
+	std::string uid;
 	scope_block_tracker_t *stracker;
 	stype_tracker_t *ttracker;
 	sdecl_tracker_t *dtracker;

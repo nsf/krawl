@@ -298,6 +298,7 @@ int main(int argc, char **argv)
 
 	// PASS 2
 	pass2_t p2;
+	p2.uid = opts.theuid;
 	p2.stracker = &d.stracker;
 	p2.ttracker = &d.ttracker;
 	p2.dtracker = &d.dtracker;
