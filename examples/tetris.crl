@@ -239,7 +239,7 @@ func TetrisFigureGetRotNum(f *TetrisFigure, rotate RotateFunc) int
 
 				// check whether a rotation is valid an record it
 				if rbx >= 0 && rbx <= 4 && rby >= 0 && rby <= 4 {
-					bmask |= 1 << i.(uint);
+					bmask |= 1 << i;
 				}
 			}
 
