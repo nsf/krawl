@@ -744,7 +744,7 @@ stype_t *binop_compat(stype_t *a, stype_t *b, int tok, stype_t **optype)
 	case TOK_SHIFTL:
 	case TOK_SHIFTR:
 		if ((a->type & STYPE_INT) && (b->type & STYPE_INT))
-			out_op = shift_op_compat(a, b);
+			out_op = a;
 		break;
 	case TOK_ANDAND:
 	case TOK_OROR:

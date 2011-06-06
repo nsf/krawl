@@ -905,9 +905,13 @@ void llvm_backend_t::codegen_arithmetic_conversion(Value **l, Value **r,
 						   stype_t *lt, stype_t *rt,
 						   int tok)
 {
-	// don't do anything if it's a shift expression
-	if (tok == TOK_SHIFTL || tok == TOK_SHIFTR)
+	if (tok == TOK_SHIFTL || tok == TOK_SHIFTR) {
+		if (lt->bits() == 64 && rt->bits() < 64)
+			*r = ir->CreateZExt(*r, IntegerType::get(LLGC, 64));
+		else if (rt->bits() == 64 && lt->bits() < 64)
+			*r = ir->CreateTrunc(*r, IntegerType::get(LLGC, 32));
 		return;
+	}
 
 	if (lt->bits() == rt->bits())
 		return;
