@@ -1,9 +1,8 @@
 def build(bld):
-	sources = bld.path.ant_glob("*.cpp cityhash/*.cc")
+	compiler_src = bld.path.ant_glob("*.cpp cityhash/*.cc")
 	bld.program(
-		source = sources,
-		target = 'crawlc',
-		use = 'LLVM',
-		lib = 'mpfr gmp LLVM-2.9',
-		includes = '.'
+		source   = compiler_src,
+		target   = 'crawlc',
+		use      = 'LLVM',
+		lib      = 'mpfr gmp LLVM-2.9'
 	)
