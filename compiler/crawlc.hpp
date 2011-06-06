@@ -38,7 +38,7 @@ using std::tr1::hash;
 				pretty_print_FILE(__FILE__), __LINE__);		\
 			fprintf(stderr, __VA_ARGS__);				\
 			fprintf(stderr, "\n");					\
-			exit(EXIT_FAILURE);					\
+			abort();						\
 		}								\
 	} while (0)
 	#define CRAWL_QASSERT(cond)						\
@@ -46,7 +46,7 @@ using std::tr1::hash;
 		if (!(cond)) {							\
 			fprintf(stderr, "CRAWL_QASSERT(%s) (%s:%d)\n", #cond,	\
 				pretty_print_FILE(__FILE__), __LINE__);		\
-			exit(EXIT_FAILURE);					\
+			abort();						\
 		}								\
 	} while (0)
 #endif
@@ -1034,6 +1034,19 @@ enum {
 // stype_t
 //------------------------------------------------------------------------------
 
+struct compound_stype_t;
+struct module_stype_t;
+struct void_stype_t;
+struct bool_stype_t;
+struct int_stype_t;
+struct float_stype_t;
+struct string_stype_t;
+struct named_stype_t;
+struct pointer_stype_t;
+struct func_stype_t;
+struct struct_stype_t;
+struct array_stype_t;
+
 enum stype_type_t {
 	// simple
 	STYPE_VOID     = 1 << 0,
@@ -1066,6 +1079,23 @@ struct stype_t {
 	virtual stype_t *end_type();
 	virtual int bits();
 	virtual std::string to_string();
+
+#define TCONVERT(ty) ty##_stype_t *as_##ty()
+
+	TCONVERT(compound);
+	TCONVERT(module);
+	TCONVERT(void);
+	TCONVERT(bool);
+	TCONVERT(int);
+	TCONVERT(float);
+	TCONVERT(string);
+	TCONVERT(named);
+	TCONVERT(pointer);
+	TCONVERT(func);
+	TCONVERT(struct);
+	TCONVERT(array);
+
+#undef TCONVERT
 };
 
 

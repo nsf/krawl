@@ -139,7 +139,7 @@ static bool is_bb_returns(BasicBlock *bb)
 
 static void generate_NRV_ret(IRBuilder<> *ir, func_sdecl_t *fsd)
 {
-	func_stype_t *fst = (func_stype_t*)fsd->stype;
+	func_stype_t *fst = fsd->stype->as_func();
 	func_type_t *ft = fsd->decl->ftype;
 
 	std::vector<Value*> vals;
@@ -173,7 +173,7 @@ static void finalize_function(IRBuilder<> *ir, func_sdecl_t *fsd)
 		return;
 	}
 
-	func_stype_t *fst = (func_stype_t*)fsd->stype;
+	func_stype_t *fst = fsd->stype->as_func();
 	func_type_t *ft = fsd->decl->ftype;
 
 	if (fst->results.empty()) {
@@ -188,11 +188,10 @@ static void finalize_function(IRBuilder<> *ir, func_sdecl_t *fsd)
 static stype_t *compound_lit_stype_i(compound_lit_t *c, size_t i)
 {
 	if (IS_STYPE_ARRAY(c->vst.stype)) {
-		array_stype_t *ast = (array_stype_t*)c->vst.stype->end_type();
+		array_stype_t *ast = c->vst.stype->as_array();
 		return ast->elem;
 	} else {
-		CRAWL_QASSERT(IS_STYPE_STRUCT(c->vst.stype));
-		struct_stype_t *sst = (struct_stype_t*)c->vst.stype->end_type();
+		struct_stype_t *sst = c->vst.stype->as_struct();
 		return sst->fields[i].type;
 	}
 	CRAWL_ASSERT(false, "unreachable");
@@ -298,7 +297,7 @@ const Type *llvm_backend_t::llvmtype(stype_t *st)
 		case 64: st->llvmtype = Type::getDoubleTy(LLGC); break;
 		}
 	} else if (st->type & STYPE_POINTER) {
-		pointer_stype_t *pst = (pointer_stype_t*)st->end_type();
+		pointer_stype_t *pst = st->as_pointer();
 
 		BIND_TMP_TYPE();
 
@@ -307,7 +306,7 @@ const Type *llvm_backend_t::llvmtype(stype_t *st)
 
 		REFINE_TMP_TYPE(ptrty);
 	} else if (st->type & STYPE_FUNC) {
-		func_stype_t *fst = (func_stype_t*)st->end_type();
+		func_stype_t *fst = st->as_func();
 
 		BIND_TMP_TYPE();
 
@@ -315,7 +314,7 @@ const Type *llvm_backend_t::llvmtype(stype_t *st)
 
 		REFINE_TMP_TYPE(functy);
 	} else if (st->type & (STYPE_STRUCT | STYPE_UNION)) {
-		struct_stype_t *sst = (struct_stype_t*)st->end_type();
+		struct_stype_t *sst = st->as_struct();
 
 		BIND_TMP_TYPE();
 
@@ -332,7 +331,7 @@ const Type *llvm_backend_t::llvmtype(stype_t *st)
 
 		REFINE_TMP_TYPE(structty);
 	} else if (st->type & STYPE_ARRAY) {
-		array_stype_t *ast = (array_stype_t*)st->end_type();
+		array_stype_t *ast = st->as_array();
 
 		BIND_TMP_TYPE();
 
@@ -392,8 +391,7 @@ void llvm_backend_t::codegen_MRV(std::vector<Value*> *values,
 {
 	call_expr_t *callexpr = is_call_expr(expr);
 	CRAWL_QASSERT(callexpr != 0);
-	CRAWL_QASSERT(IS_STYPE_FUNC(callexpr->expr->vst.stype));
-	func_stype_t *fst = (func_stype_t*)callexpr->expr->vst.stype->end_type();
+	func_stype_t *fst = callexpr->expr->vst.stype->as_func();
 
 	Value *mrv = codegen_expr_value(callexpr);
 	values->reserve(fst->results.size());
@@ -731,7 +729,7 @@ void llvm_backend_t::codegen_decl_stmt(decl_stmt_t *stmt)
 
 void llvm_backend_t::codegen_return_stmt(return_stmt_t *stmt)
 {
-	func_stype_t *fst = (func_stype_t*)cur_func_decl->stype;
+	func_stype_t *fst = cur_func_decl->stype->as_func();
 	if (stmt->returns.size() == 0) {
 		if (cur_func_decl->has_named_return_values())
 			generate_NRV_ret(ir, cur_func_decl);
@@ -876,7 +874,7 @@ Value *llvm_backend_t::codegen_implicit_conversion_up(Value *v, stype_t *to)
 		return ir->CreateFPExt(v, llvmtype(to));
 	}
 	if (IS_STYPE_INT(to)) {
-		int_stype_t *ist = (int_stype_t*)to->end_type();
+		int_stype_t *ist = to->as_int();
 		if (ist->is_signed)
 			return ir->CreateSExt(v, llvmtype(to));
 		else
@@ -925,8 +923,8 @@ void llvm_backend_t::codegen_arithmetic_conversion(Value **l, Value **r,
 	if (IS_STYPE_INT(big) && IS_STYPE_INT(small)) {
 		// check special case: uint32 OP int16
 		// it needs to be converted to int32
-		int_stype_t *ibig   = (int_stype_t*)big->end_type();
-		int_stype_t *ismall = (int_stype_t*)small->end_type();
+		int_stype_t *ibig   = big->as_int();
+		int_stype_t *ismall = small->as_int();
 		if (!ibig->is_signed && ismall->is_signed)
 			big = get_int_type(ibig->size);
 	}
@@ -944,7 +942,7 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 {
 	codegen_arithmetic_conversion(&l, &r, lt, rt, tok);
 	if (IS_STYPE_INT(et)) {
-		int_stype_t *ist = (int_stype_t*)et->end_type();
+		int_stype_t *ist = et->as_int();
 
 		switch (tok) {
 		case TOK_PLUS:
@@ -1028,26 +1026,29 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 			if (!are_the_same(lt->end_type(), rt->end_type()))
 				r = ir->CreatePointerCast(r, llvmtype(lt));
 		}
-		int_stype_t *ist = (int_stype_t*)lt->end_type();
+		bool is_signed = false;
+		if (IS_STYPE_INT(lt))
+			is_signed = lt->as_int()->is_signed;
+
 		switch (tok) {
 		case TOK_EQ:
 			return ir->CreateICmpEQ(l, r);
 		case TOK_NEQ:
 			return ir->CreateICmpNE(l, r);
 		case TOK_LT:
-			if (ist->is_signed)
+			if (is_signed)
 				return ir->CreateICmpSLT(l, r);
 			return ir->CreateICmpULT(l, r);
 		case TOK_LE:
-			if (ist->is_signed)
+			if (is_signed)
 				return ir->CreateICmpSLE(l, r);
 			return ir->CreateICmpULE(l, r);
 		case TOK_GT:
-			if (ist->is_signed)
+			if (is_signed)
 				return ir->CreateICmpSGT(l, r);
 			return ir->CreateICmpUGT(l, r);
 		case TOK_GE:
-			if (ist->is_signed)
+			if (is_signed)
 				return ir->CreateICmpSGE(l, r);
 			return ir->CreateICmpUGE(l, r);
 		}
@@ -1187,14 +1188,14 @@ Value *llvm_backend_t::codegen_type_cast_expr(type_cast_expr_t *e)
 	{
 		if (IS_STYPE_FLOAT(from)) {
 			// float -> int
-			int_stype_t *ist = (int_stype_t*)to->end_type();
+			int_stype_t *ist = to->as_int();
 			if (ist->is_signed)
 				return ir->CreateFPToSI(expr, llvmtype(to));
 			else
 				return ir->CreateFPToUI(expr, llvmtype(to));
 		} else {
 			// int -> float
-			int_stype_t *ist = (int_stype_t*)from->end_type();
+			int_stype_t *ist = from->as_int();
 			if (ist->is_signed)
 				return ir->CreateSIToFP(expr, llvmtype(to));
 			else
@@ -1206,7 +1207,7 @@ Value *llvm_backend_t::codegen_type_cast_expr(type_cast_expr_t *e)
 	if (IS_STYPE_INT(from) && IS_STYPE_INT(to)) {
 		if (from->bits() < to->bits()) {
 			// smaller to larger, sext or zext
-			int_stype_t *ist = (int_stype_t*)from->end_type();
+			int_stype_t *ist = from->as_int();
 			if (ist->is_signed)
 				return ir->CreateSExt(expr, llvmtype(to));
 			else
@@ -1303,7 +1304,7 @@ Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
 
 Value *llvm_backend_t::codegen_call_expr(call_expr_t *e)
 {
-	func_stype_t *fst = (func_stype_t*)e->expr->vst.stype->end_type();
+	func_stype_t *fst = e->expr->vst.stype->as_func();
 	if (IS_STYPE_BUILTIN(fst))
 		return codegen_builtin_call_expr(e);
 
@@ -1377,9 +1378,9 @@ Value *llvm_backend_t::codegen_union_cast(selector_expr_t *e, Value *addr)
 	stype_t *t = e->expr->vst.stype;
 	struct_stype_t *sst;
 	if (IS_STYPE_POINTER(t))
-		sst = (struct_stype_t*)((pointer_stype_t*)t->end_type())->points_to;
+		sst = t->as_pointer()->points_to->as_struct();
 	else
-		sst = (struct_stype_t*)t->end_type();
+		sst = t->as_struct();
 
 	if (sst->biggest == sst->fields[e->idx].type)
 		return addr;
@@ -1429,7 +1430,7 @@ Value *llvm_backend_t::codegen_expr_addr(node_t *expr)
 
 		if (IS_STYPE_UNION(t) ||
 		    (IS_STYPE_POINTER(t) &&
-		     IS_STYPE_UNION(((pointer_stype_t*)t->end_type())->points_to)))
+		     IS_STYPE_UNION(t->as_pointer()->points_to)))
 		{
 			addr = codegen_union_cast(e, addr);
 			return ir->CreateConstInBoundsGEP2_32(addr, 0, 0);
@@ -1520,7 +1521,7 @@ Value *llvm_backend_t::codegen_post_load(Value *v, stype_t *ty)
 	if (IS_STYPE_BOOL(ty))
 		return ir->CreateTrunc(v, Type::getInt1Ty(LLGC));
 	if (IS_STYPE_INT(ty)) {
-		int_stype_t *ist = (int_stype_t*)ty->end_type();
+		int_stype_t *ist = ty->as_int();
 		if (ist->size < 32)
 			return ir->CreateZExt(v, Type::getInt32Ty(LLGC));
 		return v;
@@ -1646,7 +1647,7 @@ void llvm_backend_t::codegen_top_func_pre(func_sdecl_t *fsd, const char *prefix)
 	else
 		cppsprintf(&name, "_Crl_%s_%s", prefix, fsd->name.c_str());
 
-	const Type *functy = llvmfunctype((func_stype_t*)fsd->stype);
+	const Type *functy = llvmfunctype(fsd->stype->as_func());
 	Function *F = Function::Create(cast<FunctionType>(functy),
 				       Function::ExternalLinkage, name, module);
 	fsd->addr = F;
@@ -1654,7 +1655,7 @@ void llvm_backend_t::codegen_top_func_pre(func_sdecl_t *fsd, const char *prefix)
 
 void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
 {
-	func_stype_t *fst = (func_stype_t*)fsd->stype;
+	func_stype_t *fst = fsd->stype->as_func();
 	func_type_t *ft = fsd->decl->ftype;
 
 	if (!fsd->decl->body)

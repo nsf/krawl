@@ -19,6 +19,33 @@ stype_t *stype_t::end_type() { return this; }
 int stype_t::bits() { return 0; }
 std::string stype_t::to_string() { return ""; }
 
+// this one is special, don't do end_type here
+named_stype_t *stype_t::as_named()
+{
+	CRAWL_QASSERT(IS_STYPE_NAMED(this));
+	return (named_stype_t*)this;
+}
+
+#define TCONVERT(ty, TY)				\
+ty##_stype_t *stype_t::as_##ty()			\
+{							\
+	CRAWL_QASSERT(IS_STYPE_##TY(this));		\
+	return (ty##_stype_t*)this->end_type();		\
+}
+
+TCONVERT(compound, COMPOUND)
+TCONVERT(module, MODULE)
+TCONVERT(void, VOID)
+TCONVERT(bool, BOOL)
+TCONVERT(int, INT)
+TCONVERT(float, FLOAT)
+TCONVERT(string, STRING)
+TCONVERT(pointer, POINTER)
+TCONVERT(func, FUNC)
+TCONVERT(struct, STRUCT_OR_UNION)
+TCONVERT(array, ARRAY)
+
+#undef TCONVERT
 
 //------------------------------------------------------------------------------
 // compound_stype_t
@@ -363,13 +390,13 @@ size_t stype_hash(stype_t *t)
 	} else if (IS_STYPE_NAMED(t)) {
 		return (size_t)t;
 	} else if (IS_STYPE_POINTER(t)) {
-		pointer_stype_t *pt = (pointer_stype_t*)t;
+		pointer_stype_t *pt = t->as_pointer();
 		return 1 + stype_hash(pt->points_to);
 	} else if (IS_STYPE_ARRAY(t)) {
-		array_stype_t *at = (array_stype_t*)t;
+		array_stype_t *at = t->as_array();
 		return 1 + at->size + stype_hash(at->elem);
 	} else if (IS_STYPE_STRUCT_OR_UNION(t)) {
-		struct_stype_t *st = (struct_stype_t*)t;
+		struct_stype_t *st = t->as_struct();
 		size_t h = st->alignment + st->size + st->fields.size() + st->u;
 		for (size_t i = 0, n = st->fields.size(); i < n; ++i) {
 			h += st->fields[i].padding;
@@ -378,7 +405,7 @@ size_t stype_hash(stype_t *t)
 		}
 		return h;
 	} else if (IS_STYPE_FUNC(t)) {
-		func_stype_t *ft = (func_stype_t*)t;
+		func_stype_t *ft = t->as_func();
 		size_t h = ft->varargs + ft->args.size() + ft->results.size();
 		for (size_t i = 0, n = ft->args.size(); i < n; ++i)
 			h += stype_hash(ft->args[i]);
@@ -406,14 +433,14 @@ bool are_the_same(stype_t *t1, stype_t *t2)
 
 	// at this point type cannot be a named type, check for other cases
 	if (IS_STYPE_POINTER(t1) && IS_STYPE_POINTER(t2)) {
-		pointer_stype_t *pst1 = (pointer_stype_t*)t1->end_type();
-		pointer_stype_t *pst2 = (pointer_stype_t*)t2->end_type();
+		pointer_stype_t *pst1 = t1->as_pointer();
+		pointer_stype_t *pst2 = t2->as_pointer();
 		return are_the_same(pst1->points_to, pst2->points_to);
 	}
 
 	if (IS_STYPE_FUNC(t1) && IS_STYPE_FUNC(t2)) {
-		func_stype_t *fst1 = (func_stype_t*)t1->end_type();
-		func_stype_t *fst2 = (func_stype_t*)t2->end_type();
+		func_stype_t *fst1 = t1->as_func();
+		func_stype_t *fst2 = t2->as_func();
 		if (fst1->args.size() != fst2->args.size())
 			return false;
 		if (fst1->results.size() != fst2->results.size())
@@ -435,8 +462,8 @@ bool are_the_same(stype_t *t1, stype_t *t2)
 	}
 
 	if (IS_STYPE_ARRAY(t1) && IS_STYPE_ARRAY(t2)) {
-		array_stype_t *ast1 = (array_stype_t*)t1->end_type();
-		array_stype_t *ast2 = (array_stype_t*)t2->end_type();
+		array_stype_t *ast1 = t1->as_array();
+		array_stype_t *ast2 = t2->as_array();
 
 		if (ast1->size != ast2->size)
 			return false;
@@ -445,8 +472,8 @@ bool are_the_same(stype_t *t1, stype_t *t2)
 	}
 
 	if (IS_STYPE_STRUCT_OR_UNION(t1) && IS_STYPE_STRUCT_OR_UNION(t2)) {
-		struct_stype_t *sst1 = (struct_stype_t*)t1->end_type();
-		struct_stype_t *sst2 = (struct_stype_t*)t2->end_type();
+		struct_stype_t *sst1 = t1->as_struct();
+		struct_stype_t *sst2 = t2->as_struct();
 
 		if (sst1->size != sst2->size)
 			return false;
@@ -510,8 +537,8 @@ stype_t *numeric_binop_compat(stype_t *a, stype_t *b)
 		return biggest_stype(a, b);
 
 	if (IS_STYPE_INT(a) && IS_STYPE_INT(b)) {
-		int_stype_t *ia = (int_stype_t*)a->end_type();
-		int_stype_t *ib = (int_stype_t*)b->end_type();
+		int_stype_t *ia = a->as_int();
+		int_stype_t *ib = b->as_int();
 		if (ia->size == ib->size) {
 			// both are signed or unsigned, just return a
 			if (ia->is_signed == ib->is_signed)
@@ -603,7 +630,7 @@ stype_t *shift_op_compat(stype_t *a, stype_t *b)
 
 		// ensure int is unsigned
 		if (IS_STYPE_INT(b))
-			return ((int_stype_t*)b->end_type())->is_signed ? 0 : a;
+			return b->as_int()->is_signed ? 0 : a;
 	}
 	return 0;
 }
@@ -611,7 +638,7 @@ stype_t *shift_op_compat(stype_t *a, stype_t *b)
 stype_t *pointer_op_pointer_to_void(stype_t *a, stype_t *b)
 {
 	if (IS_STYPE_POINTER(a) && IS_STYPE_POINTER(b) &&
-	    IS_STYPE_VOID(((pointer_stype_t*)b->end_type())->points_to))
+	    IS_STYPE_VOID(b->as_pointer()->points_to))
 		return a;
 	return 0;
 }
@@ -782,7 +809,7 @@ stype_t *unop_compat(stype_t *operand, int tok, node_t *n, stype_tracker_t *tt)
 		break;
 	case TOK_TIMES:
 		if (IS_STYPE_POINTER(operand))
-			return ((pointer_stype_t*)operand->end_type())->points_to;
+			return operand->as_pointer()->points_to;
 		break;
 	}
 	return 0;
@@ -807,7 +834,7 @@ bool value_fits_in_type(value_t *v, stype_t *t)
 		return true;
 	else if (IS_STYPE_INT(t)) {
 		CRAWL_QASSERT(v->type == VALUE_INT);
-		int_stype_t *it = (int_stype_t*)t;
+		int_stype_t *it = t->as_int();
 		int bits = mpz_sizeinbase(v->xint, 2);
 		if (!it->is_signed) {
 			if (mpz_sgn(v->xint) >= 0 && bits <= it->bits())
@@ -884,7 +911,7 @@ bool assignable(stype_t *from, stype_t *to)
 
 	// string literal to *int8 type
 	if (IS_STYPE_STRING(from) && IS_STYPE_POINTER(to)) {
-		pointer_stype_t *p = (pointer_stype_t*)to->end_type();
+		pointer_stype_t *p = to->as_pointer();
 		if (p->points_to == builtin_named_stypes[BUILTIN_UINT8])
 			return true;
 		return false;
@@ -893,8 +920,8 @@ bool assignable(stype_t *from, stype_t *to)
 	// implicit pointer type conversions
 	// TODO: function pointers
 	if (IS_STYPE_POINTER(from) && IS_STYPE_POINTER(to)) {
-		pointer_stype_t *pfrom = (pointer_stype_t*)from->end_type();
-		pointer_stype_t *pto   = (pointer_stype_t*)to->end_type();
+		pointer_stype_t *pfrom = from->as_pointer();
+		pointer_stype_t *pto   = to->as_pointer();
 
 		// from *void to any pointer type
 		if (pfrom->points_to_void())
@@ -906,7 +933,7 @@ bool assignable(stype_t *from, stype_t *to)
 
 		// from *[]T to *T
 		if (IS_STYPE_ARRAY(pfrom->points_to)) {
-			array_stype_t *a = (array_stype_t*)pfrom->points_to;
+			array_stype_t *a = pfrom->points_to->as_array();
 			return are_the_same(a->elem, pto->points_to);
 		}
 		return false;
@@ -937,25 +964,25 @@ void stype_visitor_t::traverse(stype_t *t)
 		return;
 
 	if (IS_STYPE_NAMED(t)) {
-		named_stype_t *nst = (named_stype_t*)t;
+		named_stype_t *nst = t->as_named();
 		v->traverse(nst->real);
 		if (terminate) return;
 	} else if (IS_STYPE_POINTER(t)) {
-		pointer_stype_t *pst = (pointer_stype_t*)t;
+		pointer_stype_t *pst = t->as_pointer();
 		v->traverse(pst->points_to);
 		if (terminate) return;
 	} else if (IS_STYPE_STRUCT_OR_UNION(t)) {
-		struct_stype_t *sst = (struct_stype_t*)t;
+		struct_stype_t *sst = t->as_struct();
 		for (size_t i = 0, n = sst->fields.size(); i < n; ++i) {
 			v->traverse(sst->fields[i].type);
 			if (terminate) return;
 		}
 	} else if (IS_STYPE_ARRAY(t)) {
-		array_stype_t *ast = (array_stype_t*)t;
+		array_stype_t *ast = t->as_array();
 		v->traverse(ast->elem);
 		if (terminate) return;
 	} else if (IS_STYPE_FUNC(t)) {
-		func_stype_t *fst = (func_stype_t*)t;
+		func_stype_t *fst = t->as_func();
 		for (size_t i = 0, n = fst->args.size(); i < n; ++i) {
 			v->traverse(fst->args[i]);
 			if (terminate) return;
@@ -981,7 +1008,7 @@ struct type_loop_checker_t : stype_visitor_t {
 	stype_visitor_t *visit(stype_t *t)
 	{
 		if (IS_STYPE_NAMED(t)) {
-			named_stype_t *nst = (named_stype_t*)t;
+			named_stype_t *nst = t->as_named();
 
 			// skip built-in types
 			if (!nst->decl)
@@ -1008,7 +1035,7 @@ struct type_loop_checker_t : stype_visitor_t {
 	void post_visit(stype_t *t)
 	{
 		if (IS_STYPE_NAMED(t)) {
-			named_stype_t *nst = (named_stype_t*)t;
+			named_stype_t *nst = t->as_named();
 
 			// skip built-in types
 			if (!nst->decl)
@@ -1069,9 +1096,9 @@ void check_type_for_size_loops(diagnostic_t *diag, named_stype_t *t)
 
 void check_declared_type_sdecl(diagnostic_t *diag, type_sdecl_t *sd)
 {
-	check_type_for_size_loops(diag, (named_stype_t*)sd->stype);
+	check_type_for_size_loops(diag, sd->stype->as_named());
 	if (!sd->typeerror && IS_STYPE_STRUCT_OR_UNION(sd->stype)) {
-		struct_stype_t *sst = (struct_stype_t*)sd->stype->end_type();
+		struct_stype_t *sst = sd->stype->as_struct();
 		fix_structs_alignment(sst);
 	}
 }
@@ -1087,7 +1114,7 @@ struct structs_alignment_fixer_t : stype_visitor_t {
 
 		if (IS_STYPE_STRUCT_OR_UNION(t)) {
 			// fix struct types
-			struct_stype_t *sst = (struct_stype_t*)t->end_type();
+			struct_stype_t *sst = t->as_struct();
 			fix_structs_alignment(sst);
 			return 0;
 		}
@@ -1205,10 +1232,10 @@ size_t alignment_of(stype_t *t)
 {
 	t = t->end_type();
 	if (t->type & STYPE_ARRAY) {
-		array_stype_t *ast = (array_stype_t*)t;
+		array_stype_t *ast = t->as_array();
 		return alignment_of(ast->elem);
 	} else if (t->type & STYPE_STRUCT) {
-		struct_stype_t *sst = (struct_stype_t*)t;
+		struct_stype_t *sst = t->as_struct();
 		return sst->alignment;
 	}
 
@@ -1223,7 +1250,7 @@ size_t size_from_array_or_compound(node_t *v)
 		compound_lit_t *cl = (compound_lit_t*)v;
 		return cl->elts.size();
 	} else if (IS_STYPE_ARRAY(t)) {
-		array_stype_t *ast = (array_stype_t*)t->end_type();
+		array_stype_t *ast = t->as_array();
 		return ast->size;
 	}
 	return 0;
@@ -1479,8 +1506,7 @@ bool func_sdecl_t::has_named_return_values()
 stype_vector_t *func_sdecl_t::return_types()
 {
 	CRAWL_QASSERT(stype != 0);
-	CRAWL_QASSERT(stype->type == STYPE_FUNC);
-	func_stype_t *fst = (func_stype_t*)stype;
+	func_stype_t *fst = stype->as_func();
 	return &fst->results;
 }
 
@@ -2667,7 +2693,7 @@ bool pass2_t::typecheck_call_expr_args(call_expr_t *expr,
 
 		// set up type args
 		CRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
-		stype_vector_t *r = &((func_stype_t*)vst.stype)->results;
+		stype_vector_t *r = &vst.stype->as_func()->results;
 		args.assign(r->begin(), r->end());
 		args_n = args.size();
 	}
@@ -2771,7 +2797,7 @@ value_stype_t pass2_t::typecheck_call_expr(call_expr_t *expr, bool mok)
 		return value_stype_t();
 	}
 
-	func_stype_t *ft = (func_stype_t*)callee.stype->end_type();
+	func_stype_t *ft = callee.stype->as_func();
 	if (IS_STYPE_BUILTIN(ft))
 		return typecheck_builtin_call_expr(expr);
 
@@ -2862,11 +2888,10 @@ value_stype_t pass2_t::typecheck_index_expr(index_expr_t *expr)
 
 	stype_t *et = op.stype->end_type();
 	if (et->type & STYPE_POINTER) {
-		pointer_stype_t *pst = (pointer_stype_t*)et;
+		pointer_stype_t *pst = et->as_pointer();
 		out.stype = pst->points_to;
 	} else {
-		CRAWL_QASSERT(et->type & STYPE_ARRAY);
-		array_stype_t *ast = (array_stype_t*)et;
+		array_stype_t *ast = et->as_array();
 		out.stype = ast->elem;
 	}
 	return out;
@@ -2945,7 +2970,7 @@ value_stype_t pass2_t::typecheck_selector_expr(selector_expr_t *expr)
 
 	bool is_pointer_to_struct = false;
 	if (IS_STYPE_POINTER(op.stype)) {
-		pointer_stype_t *pst = (pointer_stype_t*)op.stype->end_type();
+		pointer_stype_t *pst = op.stype->as_pointer();
 		if (IS_STYPE_STRUCT_OR_UNION(pst->points_to))
 			is_pointer_to_struct = true;
 	}
@@ -2963,11 +2988,9 @@ value_stype_t pass2_t::typecheck_selector_expr(selector_expr_t *expr)
 
 	struct_stype_t *sst;
 	if (IS_STYPE_STRUCT_OR_UNION(op.stype))
-		sst = (struct_stype_t*)op.stype->end_type();
-	else if (is_pointer_to_struct) {
-		pointer_stype_t *pst = (pointer_stype_t*)op.stype->end_type();
-		sst = (struct_stype_t*)pst->points_to->end_type();
-	}
+		sst = op.stype->as_struct();
+	else if (is_pointer_to_struct)
+		sst = op.stype->as_pointer()->points_to->as_struct();
 
 	for (size_t i = 0, n = sst->fields.size(); i < n; ++i) {
 		struct_field_t *f = &sst->fields[i];
@@ -3092,10 +3115,10 @@ void pass2_t::pass(std::vector<const char*> *pkgdecls)
 		if (!sd->stype || sd->typeerror)
 			continue;
 
-		check_type_for_size_loops(diag, (named_stype_t*)sd->stype);
+		check_type_for_size_loops(diag, sd->stype->as_named());
 
 		if (!sd->typeerror && IS_STYPE_STRUCT_OR_UNION(sd->stype)) {
-			struct_stype_t *sst = (struct_stype_t*)sd->stype->end_type();
+			struct_stype_t *sst = sd->stype->as_struct();
 			fix_structs_alignment(sst);
 		}
 	}
@@ -3126,8 +3149,7 @@ stype_t *pass2_t::typecheck_var_init(node_t *init, int index)
 			vst = c->vst;
 
 		// our type
-		CRAWL_QASSERT(IS_STYPE_FUNC(vst.stype));
-		return ((func_stype_t*)vst.stype->end_type())->results[index];
+		return vst.stype->as_func()->results[index];
 	}
 
 	value_stype_t vst = typecheck_expr(init);
@@ -3291,7 +3313,7 @@ void pass2_t::typecheck_return_stmt(return_stmt_t *stmt)
 		c->vst = vst;
 
 		CRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
-		stype_vector_t *r = &((func_stype_t*)vst.stype)->results;
+		stype_vector_t *r = &vst.stype->as_func()->results;
 		returns.assign(r->begin(), r->end());
 		returns_n = returns.size();
 	}
@@ -3901,7 +3923,7 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 				stype_t *t = vsd->init->vst.stype;
 				CRAWL_QASSERT(t != 0 && t->type == STYPE_FUNC);
 				if (IS_STYPE_ABSTRACT(vsd->stype))
-					vsd->stype = ((func_stype_t*)t)->results[vsd->index];
+					vsd->stype = t->as_func()->results[vsd->index];
 			} else {
 				realize_expr_type(vsd->init, ctx);
 				if (IS_STYPE_ABSTRACT(vsd->stype))
@@ -3921,7 +3943,7 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 		// Create named type before 'real' type is actually known. I
 		// need that because it is possible to have recursive types.
 		tsd->stype = new_named_stype(ttracker, tsd->spec->name->val.c_str(), 0);
-		named_stype_t *nst = (named_stype_t*)tsd->stype;
+		named_stype_t *nst = tsd->stype->as_named();
 		nst->decl = tsd;
 
 		stype_t *rt = typegen(tsd->spec->type);
@@ -3940,7 +3962,7 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 		func_sdecl_t *fsd = (func_sdecl_t*)d;
 		fsd->incycle = true;
 
-		func_stype_t *ft = (func_stype_t*)typegen(fsd->decl->ftype);
+		func_stype_t *ft = typegen(fsd->decl->ftype)->as_func();
 		CRAWL_QASSERT(IS_STYPE_FUNC(ft));
 		if (ft) {
 			fsd->stype = ft;
@@ -4096,8 +4118,7 @@ void pass2_t::realize_type_cast_expr_type(type_cast_expr_t *expr, stype_t *ctx)
 void pass2_t::realize_call_expr_type(call_expr_t *expr, stype_t *ctx)
 {
 	// call expression always overrides context and cannot be abstract
-	CRAWL_QASSERT(expr->expr->vst.stype->type & STYPE_FUNC);
-	func_stype_t *ft = (func_stype_t*)expr->expr->vst.stype->end_type();
+	func_stype_t *ft = expr->expr->vst.stype->as_func();
 
 	// It is possible that expr->args is smaller than ft->args, but it's ok,
 	// because the only case where it's possible is call expr with multiple
@@ -4130,11 +4151,11 @@ void pass2_t::realize_compound_lit_type(compound_lit_t *expr, stype_t *ctx)
 	struct_stype_t *sst = 0;
 	size_t n_expected = 0;
 	if (IS_STYPE_ARRAY(ctx)) {
-		ast = (array_stype_t*)ctx->end_type();
+		ast = ctx->as_array();
 		n_expected = ast->size;
 	} else {
 		CRAWL_QASSERT(IS_STYPE_STRUCT(ctx));
-		sst = (struct_stype_t*)ctx->end_type();
+		sst = ctx->as_struct();
 		n_expected = sst->fields.size();
 	}
 
@@ -4418,7 +4439,7 @@ value_t pass2_t::eval_unop(value_stype_t *v, stype_t *result, unary_expr_t *expr
 	stype_t *e = v->stype->end_type();
 
 	if (IS_STYPE_INT(e)) {
-		out = eval_int_unop(&v->value, (int_stype_t*)e, expr);
+		out = eval_int_unop(&v->value, e->as_int(), expr);
 	} else if (IS_STYPE_FLOAT(e))
 		out = eval_float_unop(&v->value, expr);
 	else

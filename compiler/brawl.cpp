@@ -283,15 +283,15 @@ void brawl_stypes_t::save(FILE_writer_t *cout)
 		// write type
 		cout->write_uint16(t->type);
 		if (IS_STYPE_NAMED(t))
-			serialize_named(cout, (named_stype_t*)t);
+			serialize_named(cout, t->as_named());
 		else if (IS_STYPE_POINTER(t))
-			serialize_pointer(cout, (pointer_stype_t*)t);
+			serialize_pointer(cout, t->as_pointer());
 		else if (IS_STYPE_STRUCT_OR_UNION(t))
-			serialize_struct(cout, (struct_stype_t*)t);
+			serialize_struct(cout, t->as_struct());
 		else if (IS_STYPE_ARRAY(t))
-			serialize_array(cout, (array_stype_t*)t);
+			serialize_array(cout, t->as_array());
 		else if (IS_STYPE_FUNC(t))
-			serialize_func(cout, (func_stype_t*)t);
+			serialize_func(cout, t->as_func());
 		else
 			CRAWL_QASSERT(!"unreachable");
 	}
@@ -442,25 +442,25 @@ void brawl_stypes_t::restore_pointers()
 	for (size_t i = 0, n = stypes.size(); i < n; ++i) {
 		stype_t *st = stypes[i];
 		if (IS_STYPE_NAMED(st)) {
-			named_stype_t *t = (named_stype_t*)st;
+			named_stype_t *t = st->as_named();
 			if (!t->restored) {
 				t->real = (index_stype((int64_t)t->real));
 				t->restored = true;
 			}
 		} else if (IS_STYPE_POINTER(st)) {
-			pointer_stype_t *t = (pointer_stype_t*)st;
+			pointer_stype_t *t = st->as_pointer();
 			t->points_to = index_stype((int64_t)t->points_to);
 		} else if (IS_STYPE_ARRAY(st)) {
-			array_stype_t *t = (array_stype_t*)st;
+			array_stype_t *t = st->as_array();
 			t->elem = index_stype((int64_t)t->elem);
 		} else if (IS_STYPE_STRUCT_OR_UNION(st)) {
-			struct_stype_t *t = (struct_stype_t*)st;
+			struct_stype_t *t = st->as_struct();
 			for (size_t i = 0, n = t->fields.size(); i < n; ++i) {
 				struct_field_t *f = &t->fields[i];
 				f->type = index_stype((int64_t)f->type);
 			}
 		} else if (IS_STYPE_FUNC(st)) {
-			func_stype_t *t = (func_stype_t*)st;
+			func_stype_t *t = st->as_func();
 			for (size_t i = 0, n = t->args.size(); i < n; ++i)
 				t->args[i] = index_stype((int64_t)t->args[i]);
 			for (size_t i = 0, n = t->results.size(); i < n; ++i)
