@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include "crawlc.hpp"
 #include "cityhash/city.h"
+#include <llvm/Support/Timer.h>
 
 struct all_t {
 	// memory trackers for semantic declarations, types and other stuff
@@ -27,13 +28,25 @@ struct all_t {
 	// brawl
 	brawl_context_t brawl;
 
-	all_t(): ast(0)
+	// timers
+	llvm::Timer t_parse;
+	llvm::Timer t_pass1;
+	llvm::Timer t_pass2;
+	llvm::Timer t_pass3;
+	llvm::TimerGroup t_group;
+
+	all_t(): ast(0), t_group("CrawlC")
 	{
 		init_builtin_stypes();
 		fill_global_scope(&globalscope, &dtracker, &ttracker);
 		pkgscope.parent = &globalscope;
 		brawl.ttracker = &ttracker;
 		brawl.dtracker = &dtracker;
+
+		t_parse.init("Parse", t_group);
+		t_pass1.init("Pass1", t_group);
+		t_pass2.init("Pass2", t_group);
+		t_pass3.init("Pass3", t_group);
 	}
 
 	~all_t()
@@ -54,6 +67,7 @@ static const struct option longopts[] = {
 	{"help",     no_argument,       0, 'h'},
 	{"version",  no_argument,       0, 'v'},
 	{"dump",     no_argument,       0, 'D'},
+	{"time",     no_argument,       0, 't'},
 	{0,          0,                 0, 0}
 };
 
@@ -67,6 +81,7 @@ struct options_t {
 	std::vector<const char*> libs;
 	std::vector<const char*> files;
 	bool dump;
+	bool time;
 
 	// calculated on the fly
 	std::string out_lib;
@@ -89,6 +104,7 @@ static void print_help_and_exit()
 "    -o <output>          specify output destination\n"
 "    -l <lib>             specify a library name to pass to a linker\n"
 "    --dump               dump LLVM assembly to stdout during compilation\n"
+"    --time               enable timers\n"
 );
 	exit(0);
 }
@@ -122,6 +138,7 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 	opts->print_ast = false;
 	opts->out_name = "crl.out";
 	opts->dump = false;
+	opts->time = false;
 
 	int c;
 	while ((c = getopt_long(argc, argv, "vho:l:P:", longopts, 0)) != -1) {
@@ -152,6 +169,9 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 			break;
 		case 'D':
 			opts->dump = true;
+			break;
+		case 't':
+			opts->time = true;
 			break;
 		default:
 			return false;
@@ -239,6 +259,11 @@ int main(int argc, char **argv)
 
 	all_t d;
 
+#define START_TIMER(timer) if (opts.time) d.timer.startTimer()
+#define STOP_TIMER(timer) if (opts.time) d.timer.stopTimer()
+
+	START_TIMER(t_parse);
+
 	parser_t p(&d.srcinfo, &d.diag);
 	p.set_input(data_name, &data);
 	d.ast = p.parse();
@@ -253,6 +278,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	STOP_TIMER(t_parse);
+
+	START_TIMER(t_pass1);
+
 	// PASS 1
 	pass1_t p1;
 	p1.stracker = &d.stracker;
@@ -262,6 +291,10 @@ int main(int argc, char **argv)
 	p1.diag = &d.diag;
 	p1.brawl = &d.brawl;
 	p1.pass(d.ast);
+
+	STOP_TIMER(t_pass1);
+
+	START_TIMER(t_pass2);
 
 	// PASS 2
 	pass2_t p2;
@@ -281,6 +314,10 @@ int main(int argc, char **argv)
 		generate_lib(opts.out_lib.c_str(), &d.pkgscope, &d.declnames,
 			     opts.theuid.c_str(), opts.package.c_str());
 
+	STOP_TIMER(t_pass2);
+
+	START_TIMER(t_pass3);
+
 	// PASS 3
 	pass3_t p3;
 	p3.uid = opts.theuid;
@@ -289,7 +326,10 @@ int main(int argc, char **argv)
 	p3.out_name = opts.out_name;
 	p3.libs = &opts.libs;
 	p3.dump = opts.dump;
+	p3.time = opts.time;
 	p3.pass(&d.declnames);
+
+	STOP_TIMER(t_pass3);
 
 	return 0;
 }

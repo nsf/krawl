@@ -1809,6 +1809,7 @@ struct pass3_t {
 	const char *out_name;
 	std::vector<const char*> *libs;
 	bool dump;
+	bool time;
 
 	// Interface
 	void pass(std::vector<const char*> *pkgdecls);

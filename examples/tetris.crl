@@ -549,7 +549,7 @@ func GameSessionDraw(gs *GameSession)
 func main(argc int, argv **byte) int
 {
 	SDL.SDL_Init(SDL.SDL_INIT_VIDEO | SDL.SDL_INIT_TIMER);
-	screen = SDL.SDL_SetVideoMode(640, 480, 24, SDL.SDL_SWSURFACE);
+	screen = SDL.SDL_SetVideoMode(640, 480, 24, SDL.SDL_HWSURFACE | SDL.SDL_DOUBLEBUF);
 	stdlib.srand(SDL.SDL_GetTicks());
 
 	SDL.SDL_WM_SetCaption("CrawlTris", "CrawlTris");

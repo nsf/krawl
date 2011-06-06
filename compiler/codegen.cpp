@@ -8,6 +8,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/FormattedStream.h>
 #include <llvm/Support/IRBuilder.h>
+#include <llvm/Support/Timer.h>
 #include <llvm/Support/Host.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Analysis/Verifier.h>
@@ -35,6 +36,7 @@ struct llvm_backend_t {
 	const char *out_name;
 	std::vector<const char*> *libs;
 	bool dump;
+	bool time;
 
 	Module *module;
 	IRBuilder<> *ir;
@@ -1808,6 +1810,13 @@ void llvm_backend_t::finalize_init_func()
 
 void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 {
+	TimerGroup t_group("LLVM Backend");
+
+#define START_TIMER(var, name) Timer var(name, t_group); if (time) var.startTimer()
+#define STOP_TIMER(var) if (time) var.stopTimer();
+
+	START_TIMER(t_ir_gen, "IR Gen");
+
 	module = new Module("Main", LLGC);
 	ir = 0;
 	ir_alloca = 0;
@@ -1821,10 +1830,16 @@ void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 	codegen_top_sdecls(pkgdecls);
 	finalize_init_func();
 
+	STOP_TIMER(t_ir_gen);
+
 	if (dump)
 		module->dump();
-	verifyModule(*module);
 
+	START_TIMER(t_verify, "Module Verify");
+	verifyModule(*module);
+	STOP_TIMER(t_verify);
+
+	START_TIMER(t_codegen, "Codegen");
 	// CODEGEN
 	InitializeNativeTarget();
 	InitializeNativeTargetAsmPrinter();
@@ -1859,6 +1874,10 @@ void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 		pm->run(*module);
 	}
 
+	STOP_TIMER(t_codegen);
+
+	START_TIMER(t_link, "Link");
+
 	std::string libs_str;
 	for (size_t i = 0, n = libs->size(); i < n; ++i) {
 		cppsprintf(&libs_str, "-l%s ", libs->at(i));
@@ -1869,6 +1888,8 @@ void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 		   libs_str.c_str(), out_name, &tmpfilename[0]);
 	system(cmd.c_str());
 	unlink(&tmpfilename[0]);
+
+	STOP_TIMER(t_link);
 }
 
 void pass3_t::pass(std::vector<const char*> *pkgdecls)
@@ -1880,5 +1901,6 @@ void pass3_t::pass(std::vector<const char*> *pkgdecls)
 	be.out_name = out_name;
 	be.libs = libs;
 	be.dump = dump;
+	be.time = time;
 	be.pass(pkgdecls);
 }
