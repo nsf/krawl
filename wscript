@@ -1,3 +1,5 @@
+import sys
+
 top = '.'
 out = 'build'
 
@@ -12,6 +14,9 @@ def options(opt):
 
 def configure(conf):
 	conf.define('CRAWL_INSTALL_PREFIX', conf.env.PREFIX)
+
+	if sys.platform == "darwin":
+		conf.env.append_unique('LINKFLAGS_CLANG_PLUGIN', '-Wl,-undefined,dynamic_lookup')
 
 	conf.load('compiler_cxx')
 	conf.check_cfg(
