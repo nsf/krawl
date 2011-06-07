@@ -9,7 +9,7 @@
 #include <string>
 
 
-#line 223 "lexer.rl"
+#line 250 "lexer.rl"
 
 
 
@@ -469,7 +469,7 @@ static const int crawlc_en_main = 45;
 static const int crawlc_en_string_interp = 135;
 
 
-#line 226 "lexer.rl"
+#line 253 "lexer.rl"
 
 static uint32_t parse_hex(const char *p, size_t len)
 {
@@ -502,15 +502,18 @@ static uint32_t parse_oct(const char *p)
 
 void lexer_t::set_input(source_file_t *f)
 {
-	beg       = 0;
-	end       = 0;
-	file      = f;
-	p         = &file->data.front();
-	pe        = &file->data.back();
-	eof       = pe;
+	beg        = 0;
+	end        = 0;
+	file       = f;
+	p          = &file->data.front();
+	pe         = &file->data.back();
+	eof        = pe;
+	line       = 1;
+	last_tok   = 0;
+	last_tline = 0;
 
 	
-#line 514 "lexer.cpp"
+#line 517 "lexer.cpp"
 	{
 	cs = crawlc_start;
 	ts = 0;
@@ -518,7 +521,7 @@ void lexer_t::set_input(source_file_t *f)
 	act = 0;
 	}
 
-#line 266 "lexer.rl"
+#line 296 "lexer.rl"
 }
 
 token_t *lexer_t::next_token()
@@ -531,7 +534,7 @@ token_t *lexer_t::next_token()
 	}
 
 	
-#line 535 "lexer.cpp"
+#line 538 "lexer.cpp"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -552,7 +555,7 @@ _resume:
 #line 1 "lexer.rl"
 	{ts = p;}
 	break;
-#line 556 "lexer.cpp"
+#line 559 "lexer.cpp"
 		}
 	}
 
@@ -651,6 +654,33 @@ _eof_trans:
 	{
 		if (file)
 			file->add_line((p+1) - &file->data.front());
+		line++;
+
+		// for non empty lines
+		if (last_tline == line-1) {
+			// automatic semicolon insertion
+			switch (last_tok) {
+			case TOK_IDENT:
+			case TOK_INT:
+			case TOK_FLOAT:
+			case TOK_CHAR:
+			case TOK_STRING:
+			case TOK_BREAK:
+			case TOK_CONTINUE:
+			case TOK_FALLTHROUGH:
+			case TOK_RETURN:
+			case TOK_INC:
+			case TOK_DEC:
+			case TOK_RPAREN:
+			case TOK_RSB:
+			case TOK_RCURLY:
+				tok_op(TOK_SEMICOLON);
+				{p++; goto _out; }
+				break;
+			default:
+				break;
+			}
+		}
 	}
 	break;
 	case 10:
@@ -658,215 +688,215 @@ _eof_trans:
 	{te = p+1;}
 	break;
 	case 11:
-#line 56 "lexer.rl"
+#line 83 "lexer.rl"
 	{act = 1;}
 	break;
 	case 12:
-#line 57 "lexer.rl"
+#line 84 "lexer.rl"
 	{act = 2;}
 	break;
 	case 13:
-#line 58 "lexer.rl"
+#line 85 "lexer.rl"
 	{act = 3;}
 	break;
 	case 14:
-#line 59 "lexer.rl"
+#line 86 "lexer.rl"
 	{act = 4;}
 	break;
 	case 15:
-#line 60 "lexer.rl"
+#line 87 "lexer.rl"
 	{act = 5;}
 	break;
 	case 16:
-#line 61 "lexer.rl"
+#line 88 "lexer.rl"
 	{act = 6;}
 	break;
 	case 17:
-#line 62 "lexer.rl"
+#line 89 "lexer.rl"
 	{act = 7;}
 	break;
 	case 18:
-#line 63 "lexer.rl"
+#line 90 "lexer.rl"
 	{act = 8;}
 	break;
 	case 19:
-#line 64 "lexer.rl"
+#line 91 "lexer.rl"
 	{act = 9;}
 	break;
 	case 20:
-#line 65 "lexer.rl"
+#line 92 "lexer.rl"
 	{act = 10;}
 	break;
 	case 21:
-#line 67 "lexer.rl"
+#line 94 "lexer.rl"
 	{act = 11;}
 	break;
 	case 22:
-#line 68 "lexer.rl"
+#line 95 "lexer.rl"
 	{act = 12;}
 	break;
 	case 23:
-#line 69 "lexer.rl"
+#line 96 "lexer.rl"
 	{act = 13;}
 	break;
 	case 24:
-#line 70 "lexer.rl"
+#line 97 "lexer.rl"
 	{act = 14;}
 	break;
 	case 25:
-#line 71 "lexer.rl"
+#line 98 "lexer.rl"
 	{act = 15;}
 	break;
 	case 26:
-#line 72 "lexer.rl"
+#line 99 "lexer.rl"
 	{act = 16;}
 	break;
 	case 27:
-#line 73 "lexer.rl"
+#line 100 "lexer.rl"
 	{act = 17;}
 	break;
 	case 28:
-#line 152 "lexer.rl"
+#line 179 "lexer.rl"
 	{act = 67;}
 	break;
 	case 29:
-#line 158 "lexer.rl"
+#line 185 "lexer.rl"
 	{act = 68;}
 	break;
 	case 30:
-#line 194 "lexer.rl"
+#line 221 "lexer.rl"
 	{act = 73;}
 	break;
 	case 31:
-#line 79 "lexer.rl"
+#line 106 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_ELLIPSIS);  {p++; goto _out; } }}
 	break;
 	case 32:
-#line 81 "lexer.rl"
+#line 108 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_INC);       {p++; goto _out; } }}
 	break;
 	case 33:
-#line 82 "lexer.rl"
+#line 109 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_DEC);       {p++; goto _out; } }}
 	break;
 	case 34:
-#line 83 "lexer.rl"
+#line 110 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_DECLARIZE); {p++; goto _out; } }}
 	break;
 	case 35:
-#line 85 "lexer.rl"
+#line 112 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_LCURLY);    {p++; goto _out; } }}
 	break;
 	case 36:
-#line 86 "lexer.rl"
+#line 113 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_RCURLY);    {p++; goto _out; } }}
 	break;
 	case 37:
-#line 87 "lexer.rl"
+#line 114 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_LSB);       {p++; goto _out; } }}
 	break;
 	case 38:
-#line 88 "lexer.rl"
+#line 115 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_RSB);       {p++; goto _out; } }}
 	break;
 	case 39:
-#line 89 "lexer.rl"
+#line 116 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_LPAREN);    {p++; goto _out; } }}
 	break;
 	case 40:
-#line 90 "lexer.rl"
+#line 117 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_RPAREN);    {p++; goto _out; } }}
 	break;
 	case 41:
-#line 91 "lexer.rl"
+#line 118 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_SEMICOLON); {p++; goto _out; } }}
 	break;
 	case 42:
-#line 94 "lexer.rl"
+#line 121 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_COMMA);     {p++; goto _out; } }}
 	break;
 	case 43:
-#line 111 "lexer.rl"
+#line 138 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_TIMES);   {p++; goto _out; } }}
 	break;
 	case 44:
-#line 112 "lexer.rl"
+#line 139 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_DIVIDE);  {p++; goto _out; } }}
 	break;
 	case 45:
-#line 113 "lexer.rl"
+#line 140 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_MOD);     {p++; goto _out; } }}
 	break;
 	case 46:
-#line 114 "lexer.rl"
+#line 141 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_SHIFTL);  {p++; goto _out; } }}
 	break;
 	case 47:
-#line 115 "lexer.rl"
+#line 142 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_SHIFTR);  {p++; goto _out; } }}
 	break;
 	case 48:
-#line 116 "lexer.rl"
+#line 143 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_AND);     {p++; goto _out; } }}
 	break;
 	case 49:
-#line 117 "lexer.rl"
+#line 144 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_ANDNOT);  {p++; goto _out; } }}
 	break;
 	case 50:
-#line 119 "lexer.rl"
+#line 146 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_PLUS);    {p++; goto _out; } }}
 	break;
 	case 51:
-#line 120 "lexer.rl"
+#line 147 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_MINUS);   {p++; goto _out; } }}
 	break;
 	case 52:
-#line 121 "lexer.rl"
+#line 148 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_OR);      {p++; goto _out; } }}
 	break;
 	case 53:
-#line 122 "lexer.rl"
+#line 149 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_A_XOR);     {p++; goto _out; } }}
 	break;
 	case 54:
-#line 124 "lexer.rl"
+#line 151 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_EQ);        {p++; goto _out; } }}
 	break;
 	case 55:
-#line 125 "lexer.rl"
+#line 152 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_NEQ);       {p++; goto _out; } }}
 	break;
 	case 56:
-#line 126 "lexer.rl"
+#line 153 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_LE);        {p++; goto _out; } }}
 	break;
 	case 57:
-#line 127 "lexer.rl"
+#line 154 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_GE);        {p++; goto _out; } }}
 	break;
 	case 58:
-#line 131 "lexer.rl"
+#line 158 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_ANDAND);    {p++; goto _out; } }}
 	break;
 	case 59:
-#line 133 "lexer.rl"
+#line 160 "lexer.rl"
 	{te = p+1;{ tok_op(TOK_OROR);      {p++; goto _out; } }}
 	break;
 	case 60:
-#line 140 "lexer.rl"
+#line 167 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 61:
-#line 143 "lexer.rl"
+#line 170 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 62:
-#line 146 "lexer.rl"
+#line 173 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 63:
-#line 161 "lexer.rl"
+#line 188 "lexer.rl"
 	{te = p+1;{ 
 			tok_int(ts, te-2);
 			tok_op_pos(TOK_DOT, te-2, te-1);
@@ -875,7 +905,7 @@ _eof_trans:
 		}}
 	break;
 	case 64:
-#line 173 "lexer.rl"
+#line 200 "lexer.rl"
 	{te = p+1;{
 			beg = ts; end = te;
 			interp.assign(ts+1, (te-ts)-2);
@@ -884,11 +914,11 @@ _eof_trans:
 		}}
 	break;
 	case 65:
-#line 181 "lexer.rl"
+#line 208 "lexer.rl"
 	{te = p+1;{ beg = p; {cs = 135; goto _again;} }}
 	break;
 	case 66:
-#line 184 "lexer.rl"
+#line 211 "lexer.rl"
 	{te = p+1;{
 			beg = ts; end = te;
 			tok_string(TOK_CHAR);
@@ -896,83 +926,83 @@ _eof_trans:
 		}}
 	break;
 	case 67:
-#line 92 "lexer.rl"
+#line 119 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_COLON);     {p++; goto _out; } }}
 	break;
 	case 68:
-#line 93 "lexer.rl"
+#line 120 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_DOT);       {p++; goto _out; } }}
 	break;
 	case 69:
-#line 95 "lexer.rl"
+#line 122 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_NOT);       {p++; goto _out; } }}
 	break;
 	case 70:
-#line 96 "lexer.rl"
+#line 123 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_ASSIGN);    {p++; goto _out; } }}
 	break;
 	case 71:
-#line 98 "lexer.rl"
+#line 125 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_TIMES);     {p++; goto _out; } }}
 	break;
 	case 72:
-#line 99 "lexer.rl"
+#line 126 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_DIVIDE);    {p++; goto _out; } }}
 	break;
 	case 73:
-#line 100 "lexer.rl"
+#line 127 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_MOD);       {p++; goto _out; } }}
 	break;
 	case 74:
-#line 101 "lexer.rl"
+#line 128 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_SHIFTL);    {p++; goto _out; } }}
 	break;
 	case 75:
-#line 102 "lexer.rl"
+#line 129 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_SHIFTR);    {p++; goto _out; } }}
 	break;
 	case 76:
-#line 103 "lexer.rl"
+#line 130 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_AND);       {p++; goto _out; } }}
 	break;
 	case 77:
-#line 104 "lexer.rl"
+#line 131 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_ANDNOT);    {p++; goto _out; } }}
 	break;
 	case 78:
-#line 106 "lexer.rl"
+#line 133 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_PLUS);      {p++; goto _out; } }}
 	break;
 	case 79:
-#line 107 "lexer.rl"
+#line 134 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_MINUS);     {p++; goto _out; } }}
 	break;
 	case 80:
-#line 108 "lexer.rl"
+#line 135 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_OR);        {p++; goto _out; } }}
 	break;
 	case 81:
-#line 109 "lexer.rl"
+#line 136 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_XOR);       {p++; goto _out; } }}
 	break;
 	case 82:
-#line 128 "lexer.rl"
+#line 155 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_LT);        {p++; goto _out; } }}
 	break;
 	case 83:
-#line 129 "lexer.rl"
+#line 156 "lexer.rl"
 	{te = p;p--;{ tok_op(TOK_GT);        {p++; goto _out; } }}
 	break;
 	case 84:
-#line 152 "lexer.rl"
+#line 179 "lexer.rl"
 	{te = p;p--;{ tok_int(ts, te); {p++; goto _out; } }}
 	break;
 	case 85:
-#line 158 "lexer.rl"
+#line 185 "lexer.rl"
 	{te = p;p--;{ tok_float(ts, te); {p++; goto _out; } }}
 	break;
 	case 86:
-#line 194 "lexer.rl"
+#line 221 "lexer.rl"
 	{te = p;p--;{ 
 			beg = ts; end = te;
 			interp.assign(ts, te-ts);
@@ -981,15 +1011,15 @@ _eof_trans:
 		}}
 	break;
 	case 87:
-#line 93 "lexer.rl"
+#line 120 "lexer.rl"
 	{{p = ((te))-1;}{ tok_op(TOK_DOT);       {p++; goto _out; } }}
 	break;
 	case 88:
-#line 99 "lexer.rl"
+#line 126 "lexer.rl"
 	{{p = ((te))-1;}{ tok_op(TOK_DIVIDE);    {p++; goto _out; } }}
 	break;
 	case 89:
-#line 152 "lexer.rl"
+#line 179 "lexer.rl"
 	{{p = ((te))-1;}{ tok_int(ts, te); {p++; goto _out; } }}
 	break;
 	case 90:
@@ -1064,23 +1094,23 @@ _eof_trans:
 	}
 	break;
 	case 91:
-#line 210 "lexer.rl"
+#line 237 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 92:
-#line 211 "lexer.rl"
+#line 238 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 93:
-#line 212 "lexer.rl"
+#line 239 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 94:
-#line 213 "lexer.rl"
+#line 240 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 95:
-#line 214 "lexer.rl"
+#line 241 "lexer.rl"
 	{te = p+1;}
 	break;
 	case 96:
@@ -1088,7 +1118,7 @@ _eof_trans:
 	{te = p+1;{ interp.append(1, (*p)); }}
 	break;
 	case 97:
-#line 216 "lexer.rl"
+#line 243 "lexer.rl"
 	{te = p+1;{
 			end = te;
 			tok_string(TOK_STRING);
@@ -1104,7 +1134,7 @@ _eof_trans:
 #line 18 "lexer.rl"
 	{{p = ((te))-1;}{ interp.append(1, (*p)); }}
 	break;
-#line 1108 "lexer.cpp"
+#line 1138 "lexer.cpp"
 		}
 	}
 
@@ -1117,7 +1147,7 @@ _again:
 #line 1 "lexer.rl"
 	{ts = 0;}
 	break;
-#line 1121 "lexer.cpp"
+#line 1151 "lexer.cpp"
 		}
 	}
 
@@ -1137,7 +1167,7 @@ _again:
 	_out: {}
 	}
 
-#line 278 "lexer.rl"
+#line 308 "lexer.rl"
 
 	if (!next.empty()) {
 		n = next.back();
@@ -1186,6 +1216,8 @@ void lexer_t::tok_int(char *b, char *e)
 	token_t *n = new token_t(interp.c_str(), TOK_INT,
 				 loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_float(char *b, char *e)
@@ -1195,6 +1227,8 @@ void lexer_t::tok_float(char *b, char *e)
 	token_t *n = new token_t(interp.c_str(), TOK_FLOAT,
 				 loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_string(int type)
@@ -1202,6 +1236,8 @@ void lexer_t::tok_string(int type)
 	token_t *n = new token_t(interp.c_str(), type,
 				 loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_op(int optype)
@@ -1209,6 +1245,8 @@ void lexer_t::tok_op(int optype)
 	beg = ts; end = te;
 	token_t *n = new token_t(0, optype, loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_op_pos(int optype, char *b, char *e)
@@ -1216,6 +1254,8 @@ void lexer_t::tok_op_pos(int optype, char *b, char *e)
 	beg = b; end = e;
 	token_t *n = new token_t(0, optype, loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 source_loc_t lexer_t::loc()

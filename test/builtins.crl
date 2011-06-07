@@ -1,18 +1,17 @@
-import "stdio.h";
+import "stdio.h"
 
 type Dummy struct {
-	a, b, c int;
-	d *Dummy;
-	e double;
-};
+	a, b, c int
+	d *Dummy
+	e double
+}
 
-func main(argc int, argv **byte) int
-{
-	var d Dummy;
+func main(argc int, argv **byte) int {
+	var d Dummy
 
-	stdio.printf("sizeof(type Dummy) == %d\n", sizeof(type Dummy));
-	stdio.printf("sizeof(type [3]Dummy) == %d\n", sizeof(type [3]Dummy));
-	stdio.printf("sizeof(d) == %d\n", sizeof(d));
-	stdio.printf("sizeof(&d) == %d\n", sizeof(&d));
-	return 0;
+	stdio.printf("sizeof(type Dummy) == %d\n", sizeof(type Dummy))
+	stdio.printf("sizeof(type [3]Dummy) == %d\n", sizeof(type [3]Dummy))
+	stdio.printf("sizeof(d) == %d\n", sizeof(d))
+	stdio.printf("sizeof(&d) == %d\n", sizeof(&d))
+	return 0
 }

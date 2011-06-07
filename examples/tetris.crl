@@ -1,13 +1,13 @@
 import (
-	"SDL/SDL.h";
-	"stdlib.h";
-	"string.h";
-	"stdio.h";
+	"SDL/SDL.h"
+	"stdlib.h"
+	"string.h"
+	"stdio.h"
 )
 
-const blockSize = 15;
-const smallBlockSize = 9;
-const smallBlockOffset = (blockSize - smallBlockSize) / 2;
+const blockSize = 15
+const smallBlockSize = 9
+const smallBlockOffset = (blockSize - smallBlockSize) / 2
 
 // ████
 //   ████
@@ -16,7 +16,7 @@ const specN = `
 1200
 0000
 0000
-`;
+`
 //   ████
 // ████
 const specNMirrored = `
@@ -24,7 +24,7 @@ const specNMirrored = `
 0210
 0000
 0000
-`;
+`
 //   ██
 // ██████
 const specT = `
@@ -32,14 +32,14 @@ const specT = `
 1210
 0000
 0000
-`;
+`
 // ████████
 const specI = `
 0100
 0200
 0100
 0100
-`;
+`
 // ████
 // ████
 const specB = `
@@ -47,7 +47,7 @@ const specB = `
 1100
 0000
 0000
-`;
+`
 // ██████
 // ██
 const specL = `
@@ -55,7 +55,7 @@ const specL = `
 0200
 0110
 0000
-`;
+`
 // ██████
 //     ██
 const specLMirrored = `
@@ -63,13 +63,13 @@ const specLMirrored = `
 0200
 1100
 0000
-`;
+`
 
-var screen *SDL.SDL_Surface;
+var screen *SDL.SDL_Surface
 
 type TetrisBlockColor struct {
-	r, g, b byte;
-};
+	r, g, b byte
+}
 
 var specColors []TetrisBlockColor = {
 	{255, 0,   0},
@@ -78,8 +78,8 @@ var specColors []TetrisBlockColor = {
 	{255, 255, 255},
 	{255, 0,   255},
 	{255, 255, 0},
-	{0,   255, 255}
-};
+	{0,   255, 255},
+}
 
 var specs []*byte = {
 	specN,
@@ -88,24 +88,23 @@ var specs []*byte = {
 	specI,
 	specB,
 	specL,
-	specLMirrored
-};
+	specLMirrored,
+}
 
-func BlockDraw(x, y int, color TetrisBlockColor)
-{
+func BlockDraw(x, y int, color TetrisBlockColor) {
 	chalf := SDL.SDL_MapRGB(screen.format,
-				color.r / 2, color.g / 2, color.b / 2);
+				color.r / 2, color.g / 2, color.b / 2)
 	cfull := SDL.SDL_MapRGB(screen.format,
-				color.r, color.g, color.b);
+				color.r, color.g, color.b)
 
-	r := {x, y, blockSize, blockSize}.(SDL.SDL_Rect);
-	SDL.SDL_FillRect(screen, &r, chalf);
+	r := {x, y, blockSize, blockSize}.(SDL.SDL_Rect)
+	SDL.SDL_FillRect(screen, &r, chalf)
 
-	r.x += smallBlockOffset;
-	r.y += smallBlockOffset;
-	r.w, r.h = smallBlockSize, smallBlockSize;
+	r.x += smallBlockOffset
+	r.y += smallBlockOffset
+	r.w, r.h = smallBlockSize, smallBlockSize
 
-	SDL.SDL_FillRect(screen, &r, cfull);
+	SDL.SDL_FillRect(screen, &r, cfull)
 }
 
 //-------------------------------------------------------------------------
@@ -113,17 +112,16 @@ func BlockDraw(x, y int, color TetrisBlockColor)
 //-------------------------------------------------------------------------
 
 type TetrisBlock struct {
-	filled bool;
-	color TetrisBlockColor;
-};
+	filled bool
+	color TetrisBlockColor
+}
 
-func TetrisBlockDraw(b *TetrisBlock, x, y int)
-{
+func TetrisBlockDraw(b *TetrisBlock, x, y int) {
 	if !b.filled {
-		return;
+		return
 	}
 
-	BlockDraw(x, y, b.color);
+	BlockDraw(x, y, b.color)
 }
 
 //-------------------------------------------------------------------------
@@ -132,176 +130,167 @@ func TetrisBlockDraw(b *TetrisBlock, x, y int)
 
 type TetrisFigure struct {
 	// center of the figure (range: 0..3 0..3)
-	cx, cy int;
+	cx, cy int
 
 	// position in blocks relative to top left tetris field block
-	x, y int;
-	blocks [16]TetrisBlock;
-	class uint;
-};
+	x, y int
+	blocks [16]TetrisBlock
+	class uint
+}
 
-func NewTetrisFigure(spec *byte, color TetrisBlockColor) (f *TetrisFigure)
-{
-	f = stdlib.malloc(sizeof(type TetrisFigure));
-	string.memset(f, 0, sizeof(*f));
-	f.x = 3;
-	f.cx = -1;
-	f.cy = -1;
+func NewTetrisFigure(spec *byte, color TetrisBlockColor) (f *TetrisFigure) {
+	f = stdlib.malloc(sizeof(type TetrisFigure))
+	string.memset(f, 0, sizeof(*f))
+	f.x = 3
+	f.cx = -1
+	f.cy = -1
 
-	len := string.strlen(spec);
-	i := 0;
+	len := string.strlen(spec)
+	i := 0
 	for *spec != 0 {
 		switch *spec {
 		case '2':
-			f.cx = i % 4;
-			f.cy = i / 4;
-			fallthrough;
+			f.cx = i % 4
+			f.cy = i / 4
+			fallthrough
 		case '1':
-			f.blocks[i].filled = true;
-			f.blocks[i].color = color;
-			fallthrough;
+			f.blocks[i].filled = true
+			f.blocks[i].color = color
+			fallthrough
 		case '0':
-			i++;
+			i++
 		}
-		spec++;
+		spec++
 	}
 }
 
-func NewRandomTetrisFigure() (f *TetrisFigure)
-{
-	ri := stdlib.rand() % (sizeof(specs)/sizeof(specs[0]));
-	f = NewTetrisFigure(specs[ri], specColors[ri]);
-	f.class = ri;
+func NewRandomTetrisFigure() (f *TetrisFigure) {
+	ri := stdlib.rand() % (sizeof(specs)/sizeof(specs[0]))
+	f = NewTetrisFigure(specs[ri], specColors[ri])
+	f.class = ri
 }
 
-func NewRandomTetrisFigureNot(templ *TetrisFigure) (f *TetrisFigure)
-{
-	var ri int;
+func NewRandomTetrisFigureNot(templ *TetrisFigure) (f *TetrisFigure) {
+	var ri int
 	for {
-		ri = stdlib.rand() % (sizeof(specs)/sizeof(specs[0]));
+		ri = stdlib.rand() % (sizeof(specs)/sizeof(specs[0]))
 		if ri != templ.class {
-			break;
+			break
 		}
 	}
 
-	f = NewTetrisFigure(specs[ri], specColors[ri]);
-	f.class = ri;
+	f = NewTetrisFigure(specs[ri], specColors[ri])
+	f.class = ri
 }
 
-func TetrisFigureSetColor(f *TetrisFigure, color TetrisBlockColor)
-{
+func TetrisFigureSetColor(f *TetrisFigure, color TetrisBlockColor) {
 	for i := 0; i < 16; i++ {
 		if !f.blocks[i].filled {
-			continue;
+			continue
 		}
 
-		f.blocks[i].color = color;
+		f.blocks[i].color = color
 	}
 }
 
-func RotateCWBlock(x, y int) (ox, oy int)
-{
-	ox, oy = -y, x;
+func RotateCWBlock(x, y int) (ox, oy int) {
+	ox, oy = -y, x
 }
 
-func RotateCCWBlock(x, y int) (ox, oy int)
-{
-	ox, oy = y, -x;
+func RotateCCWBlock(x, y int) (ox, oy int) {
+	ox, oy = y, -x
 }
 
-type RotateFunc func(int, int) (int, int);
+type RotateFunc func(int, int) (int, int)
 
 
-func TetrisFigureGetRotNum(f *TetrisFigure, rotate RotateFunc) int
-{
+func TetrisFigureGetRotNum(f *TetrisFigure, rotate RotateFunc) int {
 	const (
-		Rotate1 = 1 << iota;
-		Rotate2;
-		Rotate3;
-		Rotate4;
+		Rotate1 = 1 << iota
+		Rotate2
+		Rotate3
+		Rotate4
 	)
 
-	validrots := ^0.(uint);
+	validrots := ^0.(uint)
 
 	// first we rotate each visible block four times around the center
 	// and checking whether each rotation is valid, then we make a list
 	// of valid rotation counts (like: [3, 4] or [1, 2, 3, 4])
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			bmask := 0;
+			bmask := 0
 			if !f.blocks[y*4 + x].filled {
 				continue
 			}
-			bx, by := x - f.cx, y - f.cy;
+			bx, by := x - f.cx, y - f.cy
 			for i := 0; i < 4; i++ {
-				bx, by = rotate(bx, by);
-				rbx, rby := f.cx + bx, f.cy + by;
+				bx, by = rotate(bx, by)
+				rbx, rby := f.cx + bx, f.cy + by
 
 				// check whether a rotation is valid an record it
 				if rbx >= 0 && rbx <= 4 && rby >= 0 && rby <= 4 {
-					bmask |= 1 << i;
+					bmask |= 1 << i
 				}
 			}
 
 			// apply mask to global mask
-			validrots &= bmask;
+			validrots &= bmask
 		}
 	}
 
 	// determine number of rotations
 	if validrots & Rotate1 > 0 {
-		return 1;
+		return 1
 	} else if validrots & Rotate2 > 0 {
-		return 2;
+		return 2
 	} else if validrots & Rotate3 > 0 {
-		return 3;
+		return 3
 	} else if validrots & Rotate4 > 0 {
-		return 4;
+		return 4
 	}
 
-	return 0;
+	return 0
 }
 
-func TetrisFigureRotate(f *TetrisFigure, rotate RotateFunc)
-{
+func TetrisFigureRotate(f *TetrisFigure, rotate RotateFunc) {
 	// if there is no center, then the figure cannot be rotated
 	if f.cx == -1 {
-		return;
+		return
 	}
 
-	rotnum := TetrisFigureGetRotNum(f, rotate);
+	rotnum := TetrisFigureGetRotNum(f, rotate)
 
-	var newblocks [16]TetrisBlock;
+	var newblocks [16]TetrisBlock
 	for i := 0; i < 16; i++ {
 		if !f.blocks[i].filled {
-			continue;
+			continue
 		}
 
-		x := i % 4;
-		y := i / 4;
-		x, y = x - f.cx, y - f.cy;
+		x := i % 4
+		y := i / 4
+		x, y = x - f.cx, y - f.cy
 
 		for j := 0; j < rotnum; j++ {
-			x, y = rotate(x, y);
+			x, y = rotate(x, y)
 		}
 
-		x, y = x + f.cx, y + f.cy;
-		newblocks[y*4+x] = f.blocks[i];
+		x, y = x + f.cx, y + f.cy
+		newblocks[y*4+x] = f.blocks[i]
 	}
 
-	f.blocks = newblocks;
+	f.blocks = newblocks
 }
 
-func TetrisFigureDraw(f *TetrisFigure, ox, oy int)
-{
-	ox += (f.x + 1) * blockSize;
-	oy += f.y * blockSize;
+func TetrisFigureDraw(f *TetrisFigure, ox, oy int) {
+	ox += (f.x + 1) * blockSize
+	oy += f.y * blockSize
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			offset := y*4+x;
+			offset := y*4+x
 			TetrisBlockDraw(&f.blocks[offset],
 					ox + x * blockSize,
-					oy + y * blockSize);
+					oy + y * blockSize)
 		}
 	}
 }
@@ -311,140 +300,131 @@ func TetrisFigureDraw(f *TetrisFigure, ox, oy int)
 //-------------------------------------------------------------------------
 
 type TetrisField struct	{
-	width uint;
-	height uint;
-	blocks *TetrisBlock;
-};
-
-func NewTetrisField(w, h int) (f *TetrisField)
-{
-	f = stdlib.malloc(sizeof(type TetrisField));
-	f.width = w;
-	f.height = h;
-	f.blocks = stdlib.malloc(sizeof(type TetrisBlock) * w * h);
-	TetrisFieldClear(f);
+	width uint
+	height uint
+	blocks *TetrisBlock
 }
 
-func TetrisFieldFree(f *TetrisField)
-{
-	stdlib.free(f.blocks);
-	stdlib.free(f);
+func NewTetrisField(w, h int) (f *TetrisField) {
+	f = stdlib.malloc(sizeof(type TetrisField))
+	f.width = w
+	f.height = h
+	f.blocks = stdlib.malloc(sizeof(type TetrisBlock) * w * h)
+	TetrisFieldClear(f)
 }
 
-func TetrisFieldClear(f *TetrisField)
-{
+func TetrisFieldFree(f *TetrisField) {
+	stdlib.free(f.blocks)
+	stdlib.free(f)
+}
+
+func TetrisFieldClear(f *TetrisField) {
 	for i, n := 0, f.width * f.height; i < n; i++ {
-		f.blocks[i].filled = false;
+		f.blocks[i].filled = false
 	}
 }
 
-func TetrisFieldPixelsWidth(f *TetrisField) int
-{
-	return (f.width + 2) * blockSize;
+func TetrisFieldPixelsWidth(f *TetrisField) int {
+	return (f.width + 2) * blockSize
 }
 
-func TetrisFieldPixelsHeight(f *TetrisField) int
-{
-	return (f.height + 1) * blockSize;
+func TetrisFieldPixelsHeight(f *TetrisField) int {
+	return (f.height + 1) * blockSize
 }
 
-func TetrisFieldDraw(f *TetrisField, ox, oy int)
-{
-	leftwallx := TetrisFieldPixelsWidth(f) - blockSize;
-	grey := {80, 80, 80}.(TetrisBlockColor);
+func TetrisFieldDraw(f *TetrisField, ox, oy int) {
+	leftwallx := TetrisFieldPixelsWidth(f) - blockSize
+	grey := {80, 80, 80}.(TetrisBlockColor)
 	for y := 0; y < f.height + 1; y++ {
-		BlockDraw(ox, oy + y * blockSize, grey);
-		BlockDraw(ox + leftwallx, oy + y * blockSize, grey);
+		BlockDraw(ox, oy + y * blockSize, grey)
+		BlockDraw(ox + leftwallx, oy + y * blockSize, grey)
 	}
-	bottomwally := TetrisFieldPixelsHeight(f) - blockSize;
+	bottomwally := TetrisFieldPixelsHeight(f) - blockSize
 	for x := 0; x < f.width; x++ {
-		BlockDraw(ox + (x + 1) * blockSize, oy + bottomwally, grey);
+		BlockDraw(ox + (x + 1) * blockSize, oy + bottomwally, grey)
 	}
 
-	ox += blockSize;
+	ox += blockSize
 	for y := 0; y < f.height; y++ {
 		for x := 0; x < f.width; x++ {
-			offset := y * f.width + x;
+			offset := y * f.width + x
 			TetrisBlockDraw(&f.blocks[offset],
 					ox + x * blockSize,
-					oy + y * blockSize);
+					oy + y * blockSize)
 		}
 	}
 }
 
-func TetrisFieldCollide(f *TetrisField, fig *TetrisFigure) bool
-{
+func TetrisFieldCollide(f *TetrisField, fig *TetrisFigure) bool {
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			offset := y * 4 + x;
+			offset := y * 4 + x
 			if !fig.blocks[offset].filled {
-				continue;
+				continue
 			}
 
-			fx, fy := fig.x + x, fig.y + y;
+			fx, fy := fig.x + x, fig.y + y
 			if fx < 0 || fy < 0 || fx >= f.width || fy >= f.height {
-				return true;
+				return true
 			}
-			fieldoffset := fy * f.width + fx;
+			fieldoffset := fy * f.width + fx
 			if f.blocks[fieldoffset].filled {
-				return true;
+				return true
 			}
 		}
 	}
-	return false;
+	return false
 }
 
-func TetrisFieldStepCollideAndMerge(f *TetrisField, fig *TetrisFigure) bool
-{
-	fig.y++;
+func TetrisFieldStepCollideAndMerge(f *TetrisField, fig *TetrisFigure) bool {
+	fig.y++
 	if !TetrisFieldCollide(f, fig) {
-		return false;
+		return false
 	}
-	fig.y--;
+	fig.y--
 
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			offset := y * 4 + x;
+			offset := y * 4 + x
 			if !fig.blocks[offset].filled {
-				continue;
+				continue
 			}
-			fx, fy := fig.x + x, fig.y + y;
-			fieldoffset := fy * f.width + fx;
-			f.blocks[fieldoffset] = fig.blocks[offset];
+			fx, fy := fig.x + x, fig.y + y
+			fieldoffset := fy * f.width + fx
+			f.blocks[fieldoffset] = fig.blocks[offset]
 		}
 	}
-	return true;
+	return true
 }
 
-func TetrisFieldCheckForLines(f *TetrisField) int
-{
-	lines := 0;
+func TetrisFieldCheckForLines(f *TetrisField) int {
+	lines := 0
 	for y := 0; y < f.height; y++ {
-		full := true;
+		full := true
 		for x := 0; x < f.width; x++ {
-			offset := y * f.width + x;
+			offset := y * f.width + x
 			if !f.blocks[offset].filled {
-				full = false;
-				break;
+				full = false
+				break
 			}
 		}
 
 		if !full {
-			continue;
+			continue
 		}
 
 		// if the line is full, increment counter and move all those
 		// that are above this line one line down
-		lines++;
+		lines++
 
 		for y2 := y - 1; y2 >= 0; y2-- {
 			for x := 0; x < f.width; x++ {
-				offset := y2 * f.width + x;
-				f.blocks[offset + f.width] = f.blocks[offset];
+				offset := y2 * f.width + x
+				f.blocks[offset + f.width] = f.blocks[offset]
 			}
 		}
 	}
-	return lines;
+	return lines
 }
 
 //-------------------------------------------------------------------------
@@ -452,140 +432,134 @@ func TetrisFieldCheckForLines(f *TetrisField) int
 //-------------------------------------------------------------------------
 
 type GameSession struct {
-	field *TetrisField;
-	figure *TetrisFigure;
-	next *TetrisFigure;
+	field *TetrisField
+	figure *TetrisFigure
+	next *TetrisFigure
 
-	time uint;
-	cx, cy int;
-	gameover bool;
-};
-
-func NewGameSession() (gs *GameSession)
-{
-	gs = stdlib.malloc(sizeof(type GameSession));
-	gs.field = NewTetrisField(10, 25);
-	gs.figure = NewRandomTetrisFigure();
-	gs.next = NewRandomTetrisFigureNot(gs.figure);
-	gs.time = 0;
-
-	gs.cx = (640 - TetrisFieldPixelsWidth(gs.field)) / 2;
-	gs.cy = (480 - TetrisFieldPixelsHeight(gs.field)) / 2;
-	gs.gameover = false;
+	time uint
+	cx, cy int
+	gameover bool
 }
 
-func GameSessionFree(gs *GameSession)
-{
-	TetrisFieldFree(gs.field);
+func NewGameSession() (gs *GameSession) {
+	gs = stdlib.malloc(sizeof(type GameSession))
+	gs.field = NewTetrisField(10, 25)
+	gs.figure = NewRandomTetrisFigure()
+	gs.next = NewRandomTetrisFigureNot(gs.figure)
+	gs.time = 0
+
+	gs.cx = (640 - TetrisFieldPixelsWidth(gs.field)) / 2
+	gs.cy = (480 - TetrisFieldPixelsHeight(gs.field)) / 2
+	gs.gameover = false
+}
+
+func GameSessionFree(gs *GameSession) {
+	TetrisFieldFree(gs.field)
 	if gs.figure != nil {
-		stdlib.free(gs.figure);
+		stdlib.free(gs.figure)
 	}
 	if gs.next != nil {
-		stdlib.free(gs.next);
+		stdlib.free(gs.next)
 	}
 }
 
-func GameSessionUpdate(gs *GameSession, delta uint)
-{
-	gs.time += delta;
+func GameSessionUpdate(gs *GameSession, delta uint) {
+	gs.time += delta
 	if gs.time > 200 {
-		gs.time -= 200;
+		gs.time -= 200
 		if TetrisFieldStepCollideAndMerge(gs.field, gs.figure) {
-			TetrisFieldCheckForLines(gs.field);
-			stdlib.free(gs.figure);
-			gs.figure = gs.next;
-			gs.next = nil;
+			TetrisFieldCheckForLines(gs.field)
+			stdlib.free(gs.figure)
+			gs.figure = gs.next
+			gs.next = nil
 
 			if TetrisFieldCollide(gs.field, gs.figure) {
-				gs.gameover = true;
-				return;
+				gs.gameover = true
+				return
 			}
 
-			gs.next = NewRandomTetrisFigureNot(gs.figure);
+			gs.next = NewRandomTetrisFigureNot(gs.figure)
 		}
 	}
 }
 
-func GameSessionHandleKey(gs *GameSession, key uint) bool
-{
+func GameSessionHandleKey(gs *GameSession, key uint) bool {
 	switch key {
 	case SDL.SDLK_LEFT, SDL.SDLK_a, SDL.SDLK_j:
-		gs.figure.x--;
+		gs.figure.x--
 		if TetrisFieldCollide(gs.field, gs.figure) {
-			gs.figure.x++;
+			gs.figure.x++
 		}
 	case SDL.SDLK_RIGHT, SDL.SDLK_d, SDL.SDLK_l:
-		gs.figure.x++;
+		gs.figure.x++
 		if TetrisFieldCollide(gs.field, gs.figure) {
-			gs.figure.x--;
+			gs.figure.x--
 		}
 	case SDL.SDLK_UP, SDL.SDLK_w, SDL.SDLK_i:
-		TetrisFigureRotate(gs.figure, RotateCWBlock);
+		TetrisFigureRotate(gs.figure, RotateCWBlock)
 		if TetrisFieldCollide(gs.field, gs.figure) {
-			TetrisFigureRotate(gs.figure, RotateCCWBlock);
+			TetrisFigureRotate(gs.figure, RotateCCWBlock)
 		}
 	case SDL.SDLK_DOWN, SDL.SDLK_s, SDL.SDLK_k, SDL.SDLK_SPACE:
 		for {
 			if TetrisFieldCollide(gs.field, gs.figure) {
-				gs.figure.y--;
-				break;
+				gs.figure.y--
+				break
 			} else {
-				gs.figure.y++;
+				gs.figure.y++
 			}
 		}
 	case SDL.SDLK_ESCAPE:
-		return false;
+		return false
 	}
-	return true;
+	return true
 }
 
-func GameSessionDraw(gs *GameSession)
-{
-	TetrisFieldDraw(gs.field, gs.cx, gs.cy);
-	TetrisFigureDraw(gs.figure, gs.cx, gs.cy);
-	TetrisFigureDraw(gs.next, gs.cx + TetrisFieldPixelsWidth(gs.field), gs.cy + 50);
+func GameSessionDraw(gs *GameSession) {
+	TetrisFieldDraw(gs.field, gs.cx, gs.cy)
+	TetrisFigureDraw(gs.figure, gs.cx, gs.cy)
+	TetrisFigureDraw(gs.next, gs.cx + TetrisFieldPixelsWidth(gs.field), gs.cy + 50)
 }
 
-func main(argc int, argv **byte) int
-{
-	SDL.SDL_Init(SDL.SDL_INIT_VIDEO | SDL.SDL_INIT_TIMER);
-	screen = SDL.SDL_SetVideoMode(640, 480, 24, SDL.SDL_HWSURFACE | SDL.SDL_DOUBLEBUF);
-	stdlib.srand(SDL.SDL_GetTicks());
+func main(argc int, argv **byte) int {
+	SDL.SDL_Init(SDL.SDL_INIT_VIDEO | SDL.SDL_INIT_TIMER)
+	screen = SDL.SDL_SetVideoMode(640, 480, 24, SDL.SDL_HWSURFACE | SDL.SDL_DOUBLEBUF)
+	stdlib.srand(SDL.SDL_GetTicks())
 
-	SDL.SDL_WM_SetCaption("CrawlTris", "CrawlTris");
-	SDL.SDL_EnableKeyRepeat(250, 45);
+	SDL.SDL_WM_SetCaption("CrawlTris", "CrawlTris")
+	SDL.SDL_EnableKeyRepeat(250, 45)
 
-	gs := NewGameSession();
-	last := SDL.SDL_GetTicks();
-	running := true;
+	gs := NewGameSession()
+	last := SDL.SDL_GetTicks()
+	running := true
 
-	var e SDL.SDL_Event;
+	var e SDL.SDL_Event
 	for running {
 		for SDL.SDL_PollEvent(&e) != 0 {
 			switch e._type {
 			case SDL.SDL_QUIT:
-				running = false;
+				running = false
 			case SDL.SDL_KEYDOWN:
-				running = GameSessionHandleKey(gs, e.key.keysym.sym);
+				running = GameSessionHandleKey(gs, e.key.keysym.sym)
 			}
 		}
 
-		now := SDL.SDL_GetTicks();
-		delta := now - last;
-		last = now;
+		now := SDL.SDL_GetTicks()
+		delta := now - last
+		last = now
 
-		black := SDL.SDL_MapRGB(screen.format, 0, 0, 0);
-		all := {0, 0, 640, 480}.(SDL.SDL_Rect);
-		SDL.SDL_FillRect(screen, &all, black);
+		black := SDL.SDL_MapRGB(screen.format, 0, 0, 0)
+		all := {0, 0, 640, 480}.(SDL.SDL_Rect)
+		SDL.SDL_FillRect(screen, &all, black)
 
-		GameSessionUpdate(gs, delta);
+		GameSessionUpdate(gs, delta)
 		if gs.gameover {
-			break;
+			break
 		}
 
-		GameSessionDraw(gs);
-		SDL.SDL_Flip(screen);
+		GameSessionDraw(gs)
+		SDL.SDL_Flip(screen)
 	}
 
-	return 0;
+	return 0
 }

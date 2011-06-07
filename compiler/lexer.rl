@@ -20,6 +20,33 @@
 	count_newline = '\n' @{
 		if (file)
 			file->add_line((fpc+1) - &file->data.front());
+		line++;
+
+		// for non empty lines
+		if (last_tline == line-1) {
+			// automatic semicolon insertion
+			switch (last_tok) {
+			case TOK_IDENT:
+			case TOK_INT:
+			case TOK_FLOAT:
+			case TOK_CHAR:
+			case TOK_STRING:
+			case TOK_BREAK:
+			case TOK_CONTINUE:
+			case TOK_FALLTHROUGH:
+			case TOK_RETURN:
+			case TOK_INC:
+			case TOK_DEC:
+			case TOK_RPAREN:
+			case TOK_RSB:
+			case TOK_RCURLY:
+				tok_op(TOK_SEMICOLON);
+				fbreak;
+				break;
+			default:
+				break;
+			}
+		}
 	};
 	any_count_newline = any | count_newline;
 	
@@ -255,12 +282,15 @@ static uint32_t parse_oct(const char *p)
 
 void lexer_t::set_input(source_file_t *f)
 {
-	beg       = 0;
-	end       = 0;
-	file      = f;
-	p         = &file->data.front();
-	pe        = &file->data.back();
-	eof       = pe;
+	beg        = 0;
+	end        = 0;
+	file       = f;
+	p          = &file->data.front();
+	pe         = &file->data.back();
+	eof        = pe;
+	line       = 1;
+	last_tok   = 0;
+	last_tline = 0;
 
 	%% write init;
 }
@@ -323,6 +353,8 @@ void lexer_t::tok_int(char *b, char *e)
 	token_t *n = new token_t(interp.c_str(), TOK_INT,
 				 loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_float(char *b, char *e)
@@ -332,6 +364,8 @@ void lexer_t::tok_float(char *b, char *e)
 	token_t *n = new token_t(interp.c_str(), TOK_FLOAT,
 				 loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_string(int type)
@@ -339,6 +373,8 @@ void lexer_t::tok_string(int type)
 	token_t *n = new token_t(interp.c_str(), type,
 				 loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_op(int optype)
@@ -346,6 +382,8 @@ void lexer_t::tok_op(int optype)
 	beg = ts; end = te;
 	token_t *n = new token_t(0, optype, loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 void lexer_t::tok_op_pos(int optype, char *b, char *e)
@@ -353,6 +391,8 @@ void lexer_t::tok_op_pos(int optype, char *b, char *e)
 	beg = b; end = e;
 	token_t *n = new token_t(0, optype, loc(), beg, end);
 	next.insert(next.begin(), n);
+	last_tok = n->type;
+	last_tline = line;
 }
 
 source_loc_t lexer_t::loc()

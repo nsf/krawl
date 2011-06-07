@@ -1557,6 +1557,9 @@ struct lexer_t {
 	std::string interp;
 
 	std::vector<token_t*> next;
+	int last_tok;
+	int last_tline;
+	int line;
 
 	// ragel state
 	int cs, act;

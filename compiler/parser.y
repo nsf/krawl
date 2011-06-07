@@ -45,7 +45,7 @@ stmt_list(L) ::= stmt(S). {
 	L = new node_vector_t;
 	if (S) L->push_back(S);
 }
-stmt_list(L) ::= stmt_list(L2) stmt(S). {
+stmt_list(L) ::= stmt_list(L2) SEMICOLON stmt(S). {
 	if (S) L2->push_back(S);
 	L = L2;
 }
@@ -58,7 +58,7 @@ stmt_list(L) ::= stmt_list(L2) stmt(S). {
 //------------------------------------------------------------------------------
 
 %type s_stmt { node_t* }
-s_stmt(S) ::= .                                        { S = 0; }
+//s_stmt(S) ::= .                                        { S = 0; }
 s_stmt(S) ::= expr(E).                                 { S = new expr_stmt_t(E); }
 s_stmt(S) ::= expr_list(L) ASSIGN(T)    iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
 s_stmt(S) ::= expr_list(L) DECLARIZE(T) iexpr_list(R). { S = new assign_stmt_t(L, R, T); }
@@ -84,14 +84,14 @@ s_stmt(S) ::= expr(E) DEC(T).                          { S = new incdec_stmt_t(E
 //------------------------------------------------------------------------------
 
 %type stmt { node_t* }
-stmt(S) ::= s_stmt(SS) SEMICOLON.                { S = SS; }
-stmt(S) ::= decl(D).                             { S = new decl_stmt_t(D); }
-stmt(S) ::= block_stmt(BS).                      { S = BS; }
-stmt(S) ::= BREAK(TOK).                          { S = new flow_stmt_t(TOK); }
-stmt(S) ::= CONTINUE(TOK).                       { S = new flow_stmt_t(TOK); }
-stmt(S) ::= FALLTHROUGH(TOK).                    { S = new flow_stmt_t(TOK); }
-stmt(S) ::= RETURN(TOK) iexpr_list(L) SEMICOLON. { S = new return_stmt_t(L, TOK); }
-stmt(S) ::= RETURN(TOK) SEMICOLON.               { S = new return_stmt_t(0, TOK); }
+stmt(S) ::= s_stmt(SS).                { S = SS; }
+stmt(S) ::= decl(D).                   { S = new decl_stmt_t(D); }
+stmt(S) ::= block_stmt(BS).            { S = BS; }
+stmt(S) ::= BREAK(TOK).                { S = new flow_stmt_t(TOK); }
+stmt(S) ::= CONTINUE(TOK).             { S = new flow_stmt_t(TOK); }
+stmt(S) ::= FALLTHROUGH(TOK).          { S = new flow_stmt_t(TOK); }
+stmt(S) ::= RETURN(TOK) iexpr_list(L). { S = new return_stmt_t(L, TOK); }
+stmt(S) ::= RETURN(TOK).               { S = new return_stmt_t(0, TOK); }
 
 stmt(S) ::= IF(TI) expr(E) block_stmt(BS). {
 	S = new ifelse_stmt_t(E, BS, TI);
@@ -129,11 +129,17 @@ sw_case_list(L) ::= sw_case(C).                  { L = new node_vector_t(1, C); 
 sw_case_list(L) ::= sw_case_list(L2) sw_case(C). { L2->push_back(C); L = L2; }
 
 %type sw_case { switch_stmt_case_t* }
-sw_case(C) ::= CASE(TOK) expr_list(EL) COLON(COL) ostmt_list(SL). {
+sw_case(C) ::= CASE(TOK) expr_list(EL) COLON(COL) stmt_list(SL) osemi. {
 	C = new switch_stmt_case_t(EL, SL, TOK, COL);
 }
-sw_case(C) ::= DEFAULT(TOK) COLON(COL) ostmt_list(SL). {
+sw_case(C) ::= CASE(TOK) expr_list(EL) COLON(COL). {
+	C = new switch_stmt_case_t(EL, 0, TOK, COL);
+}
+sw_case(C) ::= DEFAULT(TOK) COLON(COL) stmt_list(SL) osemi. {
 	C = new switch_stmt_case_t(0, SL, TOK, COL);
+}
+sw_case(C) ::= DEFAULT(TOK) COLON(COL). {
+	C = new switch_stmt_case_t(0, 0, TOK, COL);
 }
 
 
@@ -144,8 +150,11 @@ sw_case(C) ::= DEFAULT(TOK) COLON(COL) ostmt_list(SL). {
 //------------------------------------------------------------------------------
 
 %type block_stmt { block_stmt_t* }
-block_stmt(BS) ::= LCURLY(L) ostmt_list(STMTS) RCURLY(R). {
+block_stmt(BS) ::= LCURLY(L) stmt_list(STMTS) osemi RCURLY(R). {
 	BS = new block_stmt_t(STMTS, L, R);
+}
+block_stmt(BS) ::= LCURLY(L) RCURLY(R). {
+	BS = new block_stmt_t(0, L, R);
 }
 
 
@@ -156,8 +165,8 @@ block_stmt(BS) ::= LCURLY(L) ostmt_list(STMTS) RCURLY(R). {
 //------------------------------------------------------------------------------
 
 %type decl_list { node_vector_t* }
-decl_list(L) ::= .                      { L = new node_vector_t; }
-decl_list(L) ::= decl_list(L2) decl(D). { L2->push_back(D); L = L2; }
+decl_list(L) ::= decl(D).                         { L = new node_vector_t(1, D); }
+decl_list(L) ::= decl_list(L2) SEMICOLON decl(D). { L2->push_back(D); L = L2; }
 
 
 
@@ -173,19 +182,19 @@ decl_list(L) ::= decl_list(L2) decl(D). { L2->push_back(D); L = L2; }
 //------------------------------------------------------------------------------
 
 %type decl { node_t* }
-decl(D) ::= IMPORT(TOK) import_spec(IS) SEMICOLON. {
+decl(D) ::= IMPORT(TOK) import_spec(IS). {
 	D = new import_decl_t(IS, TOK);
 }
 decl(D) ::= IMPORT(TOK) LPAREN(L) import_spec_list(ISL) osemi RPAREN(R). {
 	D = new import_decl_t(ISL, TOK, L, R);
 }
-decl(D) ::= TYPE(TOK) type_spec(TS) SEMICOLON. {
+decl(D) ::= TYPE(TOK) type_spec(TS). {
 	D = new type_decl_t(TS, TOK);
 }
 decl(D) ::= TYPE(TOK) LPAREN(L) type_spec_list(TSL) osemi RPAREN(R). {
 	D = new type_decl_t(TSL, TOK, L, R);
 }
-decl(D) ::= CONST(TOK) value_spec(VS) SEMICOLON. {
+decl(D) ::= CONST(TOK) value_spec(VS). {
 	const_decl_t *d = new const_decl_t(VS, TOK);
 	syntax_check_const_decl(ctx->diag, d);
 	D = d;
@@ -195,7 +204,7 @@ decl(D) ::= CONST(TOK) LPAREN(L) value_spec_list(VSL) osemi RPAREN(R). {
 	syntax_check_const_decl(ctx->diag, d);
 	D = d;
 }
-decl(D) ::= VAR(TOK) value_spec(VS) SEMICOLON. {
+decl(D) ::= VAR(TOK) value_spec(VS). {
 	var_decl_t *d = new var_decl_t(VS, TOK);
 	syntax_check_var_decl(ctx->diag, d);
 	D = d;
@@ -207,7 +216,7 @@ decl(D) ::= VAR(TOK) LPAREN(L) value_spec_list(VSL) osemi RPAREN(R). {
 }
 decl(D) ::= FUNC(TOK) ident(N) 
             LPAREN oargs_comma_list(A) RPAREN
-	    func_results(R) SEMICOLON.
+	    func_results(R).
 {
 	func_type_t *ftype = new func_type_t(A, R, TOK);
 	D = new func_decl_t(N, ftype);
@@ -506,10 +515,10 @@ expr(E) ::= expr(L) OROR(T)   expr(R). { E = new binary_expr_t(L, R, T); }
 //------------------------------------------------------------------------------
 
 %type compound_lit { node_t* }
-compound_lit(CL) ::= LCURLY(L) iexpr_list(CEL) RCURLY(R). {
+compound_lit(CL) ::= LCURLY(L) iexpr_list(CEL) ocomma RCURLY(R). {
 	CL = new compound_lit_t(CEL, 0, L, R);
 }
-compound_lit(CL) ::= LCURLY(L) iexpr_list(CEL) RCURLY DOT LPAREN type(T) RPAREN(R). {
+compound_lit(CL) ::= LCURLY(L) iexpr_list(CEL) ocomma RCURLY DOT LPAREN type(T) RPAREN(R). {
 	CL = new compound_lit_t(CEL, T, L, R);
 }
 
@@ -534,11 +543,12 @@ type_expr(TE) ::= TYPE(TOK) type(T). { TE = new type_expr_t(T, TOK); }
 // expr, compound, expr
 //------------------------------------------------------------------------------
 
+%type iexpr { node_t* }
+iexpr(CE) ::= expr(E).          { CE = E; }
+iexpr(CE) ::= compound_lit(CL). { CE = CL; }
+iexpr(CE) ::= type_expr(TE).    { CE = TE; }
+
 %type iexpr_list { node_vector_t* }
-%type iexpr      { node_t* }
-iexpr(CE) ::= expr(E).                           { CE = E; }
-iexpr(CE) ::= compound_lit(CL).                  { CE = CL; }
-iexpr(CE) ::= type_expr(TE).                     { CE = TE; }
 iexpr_list(L) ::= iexpr(E).                      { L = new node_vector_t(1, E); }
 iexpr_list(L) ::= iexpr_list(L2) COMMA iexpr(E). { L2->push_back(E); L = L2; }
 
@@ -557,15 +567,19 @@ expr_list(L) ::= expr_list(L2) COMMA expr(E). { L2->push_back(E); L = L2; }
 osemi ::= .
 osemi ::= SEMICOLON.
 
+// optional comma
+ocomma ::= .
+ocomma ::= COMMA.
+
 // optional expression
 %type oexpr { node_t* }
 oexpr(OE) ::= .        { OE = 0; }
 oexpr(OE) ::= expr(E). { OE = E; }
 
 // optional statement list
-%type ostmt_list { node_vector_t* }
-ostmt_list(OSL) ::= .              { OSL = 0; }
-ostmt_list(OSL) ::= stmt_list(SL). { OSL = SL; }
+//%type ostmt_list { node_vector_t* }
+//ostmt_list(OSL) ::= .              { OSL = 0; }
+//ostmt_list(OSL) ::= stmt_list(SL). { OSL = SL; }
 
 // optional type
 %type otype { node_t* }

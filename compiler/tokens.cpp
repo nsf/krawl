@@ -22,6 +22,7 @@ const char *token_to_string(int tok)
 	case TOK_SHIFTR: return "TOK_SHIFTR";
 	case TOK_AND: return "TOK_AND";
 	case TOK_ANDNOT: return "TOK_ANDNOT";
+	case TOK_SEMICOLON: return "TOK_SEMICOLON";
 	case TOK_ASSIGN: return "TOK_ASSIGN";
 	case TOK_DECLARIZE: return "TOK_DECLARIZE";
 	case TOK_A_DIVIDE: return "TOK_A_DIVIDE";
@@ -37,7 +38,6 @@ const char *token_to_string(int tok)
 	case TOK_A_XOR: return "TOK_A_XOR";
 	case TOK_INC: return "TOK_INC";
 	case TOK_DEC: return "TOK_DEC";
-	case TOK_SEMICOLON: return "TOK_SEMICOLON";
 	case TOK_BREAK: return "TOK_BREAK";
 	case TOK_CONTINUE: return "TOK_CONTINUE";
 	case TOK_FALLTHROUGH: return "TOK_FALLTHROUGH";
