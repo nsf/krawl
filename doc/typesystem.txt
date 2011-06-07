@@ -49,14 +49,14 @@ A new type can be defined using type declaration. It has this form: "`type
 
 [source,crawl]
 ----------------------------------------------------------------------------
-type Size uint;
+type Size uint
 type Person struct {
-	name *byte;
-	address Address;
-	age uint;
+	name *byte
+	address Address
+	age uint
 };
-type StrCmpFunc func(a, b *byte) int;
-type Vector3 [3]float;
+type StrCmpFunc func(a, b *byte) int
+type Vector3 [3]float
 ----------------------------------------------------------------------------
 
 You can also define multiple types at once, using this syntax:
@@ -64,14 +64,14 @@ You can also define multiple types at once, using this syntax:
 [source,crawl]
 ----------------------------------------------------------------------------
 type (
-	Size uint;
+	Size uint
 	Person struct {
-		name *byte;
-		address Address;
-		age uint;
+		name *byte
+		address Address
+		age uint
 	};
-	StrCmpFunc func(a, b *byte) int;
-	Vector3 [3]float;
+	StrCmpFunc func(a, b *byte) int
+	Vector3 [3]float
 )
 ----------------------------------------------------------------------------
 
@@ -97,25 +97,25 @@ Some examples:
 
 [source,crawl]
 ----------------------------------------------------------------------------
-var ip *int;
-var vp *void = ip;
+var ip *int
+var vp *void = ip
 
-var vec [3]float;
-var pfloat *float = &vec;
+var vec [3]float
+var pfloat *float = &vec
 
-var a uint64;
-var b int16 = a;
+var a uint64
+var b int16 = a
 
 func foo() byte {
-	var i int;
-	return i; // int truncated to byte
+	var i int
+	return i // int truncated to byte
 }
 
-func bar(a int8, b int16, c uint32);
+func bar(a int8, b int16, c uint32)
 
 // somewhere in the code
-var x int;
-bar(x, x, x);
+var x int
+bar(x, x, x)
 ----------------------------------------------------------------------------
 
 Arithmetic
@@ -140,21 +140,21 @@ Some examples:
 
 [source,crawl]
 ----------------------------------------------------------------------------
-var a float32;
-var b float64;
-var c = a + b; // a is converted to float64
+var a float32
+var b float64
+var c = a + b // a is converted to float64
 
-var a int;
-var b uint;
-var c = a - b; // b is converted to int32 (int is an alias to int32)
+var a int
+var b uint
+var c = a - b // b is converted to int32 (int is an alias to int32)
 
-var a int32;
-var b uint8;
-var c = a * b; // b is converted to int32
+var a int32
+var b uint8
+var c = a * b // b is converted to int32
 
-var a uint32;
-var b int16;
-var c = a / b; // a and b are converted to int32
+var a uint32
+var b int16
+var c = a / b // a and b are converted to int32
 ----------------------------------------------------------------------------
 
 Resulting type of an expression
@@ -180,18 +180,17 @@ affect the resulting type of an expression. Few good examples:
 
 [source,crawl]
 ----------------------------------------------------------------------------
-var a, b uint8 = 250, 200;
-var average = (a + b) / 2; // the result is 225, average's type is uint8
+var a, b uint8 = 250, 200
+var average = (a + b) / 2 // the result is 225, average's type is uint8
 
 type Packet {
-	size uint8;
+	size uint8
 };
 
-func SizeRequired(p1, p2, p3 *Packet) int
-{
+func SizeRequired(p1, p2, p3 *Packet) int {
 	// this expression doesn't overflow and the result can be bigger than
 	// uint8 can hold, because it is assigned to an int at the end
-	return p1.size + p2.size + p3.size;
+	return p1.size + p2.size + p3.size
 }
 ----------------------------------------------------------------------------
 
