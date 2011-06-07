@@ -1,8 +1,12 @@
 def build(bld):
 	compiler_src = bld.path.ant_glob("*.cpp cityhash/*.cc")
+	rpath = []
+	if bld.options.lenstr:
+		rpath = ['/usr/lib/llvm']
 	bld.program(
 		source   = compiler_src,
 		target   = 'crawlc',
 		use      = 'LLVM',
-		lib      = 'mpfr gmp LLVM-2.9'
+		lib      = 'mpfr gmp LLVM-2.9',
+		rpath    = rpath
 	)

@@ -3,6 +3,12 @@ out = 'build'
 
 def options(opt):
 	opt.load('compiler_cxx')
+	opt.add_option(
+		'--lenstr',
+		action  = 'store_true',
+		default = False,
+		help    = 'Add LLVM RPATH to the executable'
+	)
 
 def configure(conf):
 	conf.define('CRAWL_INSTALL_PREFIX', conf.env.PREFIX)
