@@ -1533,10 +1533,14 @@ void import_sdecl_t::load(brawl_context_t *ctx)
 {
 	CRAWL_QASSERT(spec->path->val.type == VALUE_STRING);
 	std::string path = spec->path->val.to_string();
+
 	if (path.substr(path.size()-2, 2) == ".h")
 		path = update_c_module_hash(path.c_str());
-	else
+	else {
 		path += ".brl";
+		if (path.find_first_of("./") != 0)
+			path = CRAWL_INSTALL_PREFIX "/include/crawlc/" + path;
+	}
 
 	FILE *f = fopen(path.c_str(), "rb");
 	if (!f)

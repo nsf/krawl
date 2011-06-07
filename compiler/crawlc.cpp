@@ -68,6 +68,7 @@ static const struct option longopts[] = {
 	{"version",  no_argument,       0, 'v'},
 	{"dump",     no_argument,       0, 'D'},
 	{"time",     no_argument,       0, 't'},
+	{"deps",     no_argument,       0, 'm'},
 	{0,          0,                 0, 0}
 };
 
@@ -82,6 +83,7 @@ struct options_t {
 	std::vector<const char*> files;
 	bool dump;
 	bool time;
+	bool deps;
 
 	// calculated on the fly
 	std::string out_lib;
@@ -105,6 +107,7 @@ static void print_help_and_exit()
 "    -l <lib>             specify a library name to pass to a linker\n"
 "    --dump               dump LLVM assembly to stdout during compilation\n"
 "    --time               enable timers\n"
+"    --deps               print source file module dependencies\n"
 );
 	exit(0);
 }
@@ -139,6 +142,7 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 	opts->out_name = "crl.out";
 	opts->dump = false;
 	opts->time = false;
+	opts->deps = false;
 
 	int c;
 	while ((c = getopt_long(argc, argv, "vho:l:P:", longopts, 0)) != -1) {
@@ -172,6 +176,9 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 			break;
 		case 't':
 			opts->time = true;
+			break;
+		case 'm':
+			opts->deps = true;
 			break;
 		default:
 			return false;
@@ -229,6 +236,36 @@ static void generate_lib(const char *filename,
 	fclose(f);
 }
 
+static void extract_and_print_deps(std::vector<char> *data)
+{
+	unordered_set<std::string> modules;
+	source_group_t srcinfo;
+	diagnostic_t diag;
+
+	parser_t p(&srcinfo, &diag);
+	p.set_input("tmp", data);
+	node_t *ast = p.parse();
+	if (!ast)
+		DIE("failed to parse source file");
+
+	CRAWL_QASSERT(ast->type == node_t::PROGRAM);
+	program_t *prog = (program_t*)ast;
+	for (size_t i = 0, n = prog->decls.size(); i < n; ++i) {
+		node_t *d = prog->decls[i];
+		if (d->type == node_t::IMPORT_DECL) {
+			import_decl_t *id = (import_decl_t*)d;
+			for (size_t i = 0, n = id->specs.size(); i < n; ++i) {
+				import_spec_t *spec = id->specs[i];
+				std::string p = spec->path->val.to_string();
+				if (modules.find(p) == modules.end()) {
+					printf("%s\n", p.c_str());
+					modules.insert(p);
+				}
+			}
+		}
+	}
+}
+
 int main(int argc, char **argv)
 {
 	options_t opts;
@@ -256,6 +293,11 @@ int main(int argc, char **argv)
 	}
 
 	data.push_back('\0');
+
+	if (opts.deps) {
+		extract_and_print_deps(&data);
+		return 0;
+	}
 
 	all_t d;
 
