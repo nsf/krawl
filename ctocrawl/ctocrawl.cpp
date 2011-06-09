@@ -32,6 +32,8 @@ using namespace clang;
 
 namespace {
 
+const char *keywords[] = {"fallthrough","func","type","var","import"};
+
 void die(const char *why)
 {
 	fprintf(stderr, "%s\n", why);
@@ -129,9 +131,15 @@ struct CToCrawlASTConsumer : ASTConsumer {
 			out += "struct { ";
 		RecordDecl::field_iterator it, end;
 		for (it = rd->field_begin(), end = rd->field_end(); it != end; ++it) {
-			if (it->getName() == "type")
-				out += "_";
-			out += it->getNameAsString();
+			llvm::StringRef keyword = it->getName();
+			for (size_t i = 0, n = sizeof(keywords)/sizeof(keywords[0]); i < n; ++i) {
+				if (keyword == keywords[i]) {
+					out += "_";
+					break;
+				}
+			}
+
+			out += keyword.str();
 			out += " ";
 			out += clang_type_to_crawl(it->getType().getTypePtr());
 			out += "; ";
