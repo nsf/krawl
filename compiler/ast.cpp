@@ -1,4 +1,4 @@
-#include "crawlc.hpp"
+#include "krawl.hpp"
 #include <ctype.h>
 
 static std::string istr(int level)
@@ -143,7 +143,7 @@ value_t &value_t::operator=(const value_t &r)
 value_t value_t::to_float()
 {
 	// we can only promote INT to FLOAT
-	CRAWL_QASSERT(type == VALUE_INT);
+	KRAWL_QASSERT(type == VALUE_INT);
 	value_t out;
 	out.type = VALUE_FLOAT;
 	mpfr_init_set_z(out.xfloat, xint, MPFR_RNDN);
@@ -153,7 +153,7 @@ value_t value_t::to_float()
 value_t value_t::to_int()
 {
 	// we can only convert FLOAT to INT
-	CRAWL_QASSERT(type == VALUE_FLOAT);
+	KRAWL_QASSERT(type == VALUE_FLOAT);
 	value_t out;
 	out.type = VALUE_INT;
 	mpz_init(out.xint);
@@ -191,7 +191,7 @@ std::string value_t::to_string()
 
 bool value_t::to_bool()
 {
-	CRAWL_QASSERT(type == VALUE_INT);
+	KRAWL_QASSERT(type == VALUE_INT);
 	return mpz_get_ui(xint) != 0;
 }
 
@@ -770,7 +770,7 @@ size_t switch_stmt_t::num_cases()
 {
 	size_t num = 0;
 	for (size_t i = 0, n = body->stmts.size(); i < n; ++i) {
-		CRAWL_QASSERT(body->stmts[i]->type == node_t::SWITCH_STMT_CASE);
+		KRAWL_QASSERT(body->stmts[i]->type == node_t::SWITCH_STMT_CASE);
 		switch_stmt_case_t *c = (switch_stmt_case_t*)body->stmts[i];
 
 		if (c->exprs.empty()) {
@@ -815,7 +815,7 @@ source_loc_range_t flow_stmt_t::source_loc_range()
 		slr.end = pos + 11;
 		break;
 	default:
-		CRAWL_QASSERT(!"unreachable");
+		KRAWL_QASSERT(!"unreachable");
 	}
 	return slr;
 }
@@ -2077,7 +2077,7 @@ int compound_assignment_to_binary_tok(int tok)
 	case TOK_A_OR:     return TOK_OR;
 	case TOK_A_XOR:    return TOK_XOR;
 	default:
-		CRAWL_QASSERT(!"fail");
+		KRAWL_QASSERT(!"fail");
 		break;
 	}
 	return 0;

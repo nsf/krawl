@@ -2,7 +2,7 @@
 #line 1 "lexer.rl"
 // vim: filetype=ragel
 
-#include "crawlc.hpp"
+#include "krawl.hpp"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +14,7 @@
 
 
 #line 17 "lexer.cpp"
-static const char _crawlc_actions[] = {
+static const char _krawl_actions[] = {
 	0, 1, 0, 1, 1, 1, 2, 1, 
 	3, 1, 4, 1, 5, 1, 6, 1, 
 	7, 1, 8, 1, 9, 1, 10, 1, 
@@ -46,7 +46,7 @@ static const char _crawlc_actions[] = {
 	28, 2, 10, 29, 2, 10, 30
 };
 
-static const short _crawlc_key_offsets[] = {
+static const short _krawl_key_offsets[] = {
 	0, 0, 3, 4, 19, 21, 23, 29, 
 	35, 41, 47, 53, 59, 65, 71, 77, 
 	83, 89, 95, 101, 107, 108, 112, 114, 
@@ -67,7 +67,7 @@ static const short _crawlc_key_offsets[] = {
 	862
 };
 
-static const char _crawlc_trans_keys[] = {
+static const char _krawl_trans_keys[] = {
 	10, 39, 92, 39, 34, 39, 85, 92, 
 	102, 110, 114, 117, 120, 48, 55, 97, 
 	98, 116, 118, 48, 55, 48, 55, 48, 
@@ -180,7 +180,7 @@ static const char _crawlc_trans_keys[] = {
 	55, 97, 98, 116, 118, 0
 };
 
-static const char _crawlc_single_lengths[] = {
+static const char _krawl_single_lengths[] = {
 	0, 3, 1, 9, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 1, 2, 0, 2, 
@@ -201,7 +201,7 @@ static const char _crawlc_single_lengths[] = {
 	9
 };
 
-static const char _crawlc_range_lengths[] = {
+static const char _krawl_range_lengths[] = {
 	0, 0, 0, 3, 1, 1, 3, 3, 
 	3, 3, 3, 3, 3, 3, 3, 3, 
 	3, 3, 3, 3, 0, 1, 1, 0, 
@@ -222,7 +222,7 @@ static const char _crawlc_range_lengths[] = {
 	3
 };
 
-static const short _crawlc_index_offsets[] = {
+static const short _krawl_index_offsets[] = {
 	0, 0, 4, 6, 19, 21, 23, 27, 
 	31, 35, 39, 43, 47, 51, 55, 59, 
 	63, 67, 71, 75, 79, 81, 85, 87, 
@@ -243,7 +243,7 @@ static const short _crawlc_index_offsets[] = {
 	689
 };
 
-static const unsigned char _crawlc_indicies[] = {
+static const unsigned char _krawl_indicies[] = {
 	1, 1, 2, 0, 3, 1, 4, 4, 
 	6, 4, 4, 4, 4, 7, 8, 5, 
 	4, 4, 1, 9, 1, 10, 1, 11, 
@@ -334,7 +334,7 @@ static const unsigned char _crawlc_indicies[] = {
 	227, 228, 225, 224, 224, 223, 0
 };
 
-static const unsigned char _crawlc_trans_targs[] = {
+static const unsigned char _krawl_trans_targs[] = {
 	2, 0, 3, 45, 2, 4, 6, 14, 
 	18, 5, 2, 7, 8, 9, 10, 11, 
 	12, 13, 2, 15, 16, 17, 2, 19, 
@@ -366,7 +366,7 @@ static const unsigned char _crawlc_trans_targs[] = {
 	135, 29, 31, 39, 43
 };
 
-static const unsigned char _crawlc_trans_actions[] = {
+static const unsigned char _krawl_trans_actions[] = {
 	13, 0, 0, 89, 9, 0, 0, 0, 
 	0, 0, 1, 0, 0, 0, 0, 0, 
 	0, 0, 7, 0, 0, 0, 5, 0, 
@@ -398,7 +398,7 @@ static const unsigned char _crawlc_trans_actions[] = {
 	159, 0, 0, 0, 0
 };
 
-static const unsigned char _crawlc_to_state_actions[] = {
+static const unsigned char _krawl_to_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
@@ -419,7 +419,7 @@ static const unsigned char _crawlc_to_state_actions[] = {
 	0
 };
 
-static const unsigned char _crawlc_from_state_actions[] = {
+static const unsigned char _krawl_from_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
@@ -440,7 +440,7 @@ static const unsigned char _crawlc_from_state_actions[] = {
 	0
 };
 
-static const short _crawlc_eof_trans[] = {
+static const short _krawl_eof_trans[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 26, 28, 28, 31, 
@@ -461,12 +461,12 @@ static const short _crawlc_eof_trans[] = {
 	224
 };
 
-static const int crawlc_start = 45;
-static const int crawlc_first_final = 45;
-static const int crawlc_error = 0;
+static const int krawl_start = 45;
+static const int krawl_first_final = 45;
+static const int krawl_error = 0;
 
-static const int crawlc_en_main = 45;
-static const int crawlc_en_string_interp = 135;
+static const int krawl_en_main = 45;
+static const int krawl_en_string_interp = 135;
 
 
 #line 253 "lexer.rl"
@@ -515,7 +515,7 @@ void lexer_t::set_input(source_file_t *f)
 	
 #line 517 "lexer.cpp"
 	{
-	cs = crawlc_start;
+	cs = krawl_start;
 	ts = 0;
 	te = 0;
 	act = 0;
@@ -547,7 +547,7 @@ token_t *lexer_t::next_token()
 	if ( cs == 0 )
 		goto _out;
 _resume:
-	_acts = _crawlc_actions + _crawlc_from_state_actions[cs];
+	_acts = _krawl_actions + _krawl_from_state_actions[cs];
 	_nacts = (unsigned int) *_acts++;
 	while ( _nacts-- > 0 ) {
 		switch ( *_acts++ ) {
@@ -559,10 +559,10 @@ _resume:
 		}
 	}
 
-	_keys = _crawlc_trans_keys + _crawlc_key_offsets[cs];
-	_trans = _crawlc_index_offsets[cs];
+	_keys = _krawl_trans_keys + _krawl_key_offsets[cs];
+	_trans = _krawl_index_offsets[cs];
 
-	_klen = _crawlc_single_lengths[cs];
+	_klen = _krawl_single_lengths[cs];
 	if ( _klen > 0 ) {
 		const char *_lower = _keys;
 		const char *_mid;
@@ -585,7 +585,7 @@ _resume:
 		_trans += _klen;
 	}
 
-	_klen = _crawlc_range_lengths[cs];
+	_klen = _krawl_range_lengths[cs];
 	if ( _klen > 0 ) {
 		const char *_lower = _keys;
 		const char *_mid;
@@ -608,14 +608,14 @@ _resume:
 	}
 
 _match:
-	_trans = _crawlc_indicies[_trans];
+	_trans = _krawl_indicies[_trans];
 _eof_trans:
-	cs = _crawlc_trans_targs[_trans];
+	cs = _krawl_trans_targs[_trans];
 
-	if ( _crawlc_trans_actions[_trans] == 0 )
+	if ( _krawl_trans_actions[_trans] == 0 )
 		goto _again;
 
-	_acts = _crawlc_actions + _crawlc_trans_actions[_trans];
+	_acts = _krawl_actions + _krawl_trans_actions[_trans];
 	_nacts = (unsigned int) *_acts++;
 	while ( _nacts-- > 0 )
 	{
@@ -1139,7 +1139,7 @@ _eof_trans:
 	}
 
 _again:
-	_acts = _crawlc_actions + _crawlc_to_state_actions[cs];
+	_acts = _krawl_actions + _krawl_to_state_actions[cs];
 	_nacts = (unsigned int) *_acts++;
 	while ( _nacts-- > 0 ) {
 		switch ( *_acts++ ) {
@@ -1158,8 +1158,8 @@ _again:
 	_test_eof: {}
 	if ( p == eof )
 	{
-	if ( _crawlc_eof_trans[cs] > 0 ) {
-		_trans = _crawlc_eof_trans[cs] - 1;
+	if ( _krawl_eof_trans[cs] > 0 ) {
+		_trans = _krawl_eof_trans[cs] - 1;
 		goto _eof_trans;
 	}
 	}

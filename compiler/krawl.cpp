@@ -1,6 +1,6 @@
 #include <getopt.h>
 #include <ctype.h>
-#include "crawlc.hpp"
+#include "krawl.hpp"
 #include "cityhash/city.h"
 #include <llvm/Support/Timer.h>
 
@@ -35,7 +35,7 @@ struct all_t {
 	llvm::Timer t_pass3;
 	llvm::TimerGroup t_group;
 
-	all_t(): ast(0), t_group("CrawlC")
+	all_t(): ast(0), t_group("Krawl")
 	{
 		init_builtin_stypes();
 		fill_global_scope(&globalscope, &dtracker, &ttracker);
@@ -95,7 +95,7 @@ struct options_t {
 static void print_help_and_exit()
 {
 	printf(""
-"usage: crawlc [options] <files>\n"
+"usage: krawl [options] <files>\n"
 "\n"
 "    -h, --help           print this message and exit\n"
 "    -v, --version        print version and exit\n"
@@ -114,7 +114,7 @@ static void print_help_and_exit()
 
 static void print_version_and_exit()
 {
-	printf("crawlc version 0.1\n");
+	printf("krawl version 0.1\n");
 	exit(0);
 }
 
@@ -139,7 +139,7 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 	opts->uid = 0;
 	opts->hash_uid = 0;
 	opts->print_ast = false;
-	opts->out_name = "crl.out";
+	opts->out_name = "krl.out";
 	opts->dump = false;
 	opts->time = false;
 	opts->deps = false;
@@ -248,7 +248,7 @@ static void extract_and_print_deps(std::vector<char> *data)
 	if (!ast)
 		DIE("failed to parse source file");
 
-	CRAWL_QASSERT(ast->type == node_t::PROGRAM);
+	KRAWL_QASSERT(ast->type == node_t::PROGRAM);
 	program_t *prog = (program_t*)ast;
 	for (size_t i = 0, n = prog->decls.size(); i < n; ++i) {
 		node_t *d = prog->decls[i];

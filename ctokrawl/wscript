@@ -1,0 +1,8 @@
+def build(bld):
+	bld.shlib(
+		source       = 'ctokrawl.cpp',
+		target       = 'ctokrawl',
+		defines      = bld.env.DEFINES_LLVM,
+		install_path = '${PREFIX}/lib/krawl',
+		use          = 'CLANG_PLUGIN'
+	)

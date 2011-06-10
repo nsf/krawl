@@ -1,4 +1,4 @@
-#include "crawlc.hpp"
+#include "krawl.hpp"
 #include "cityhash/city.h"
 #include <algorithm>
 
@@ -22,14 +22,14 @@ std::string stype_t::to_string() { return ""; }
 // this one is special, don't do end_type here
 named_stype_t *stype_t::as_named()
 {
-	CRAWL_QASSERT(IS_STYPE_NAMED(this));
+	KRAWL_QASSERT(IS_STYPE_NAMED(this));
 	return (named_stype_t*)this;
 }
 
 #define TCONVERT(ty, TY)				\
 ty##_stype_t *stype_t::as_##ty()			\
 {							\
-	CRAWL_QASSERT(IS_STYPE_##TY(this));		\
+	KRAWL_QASSERT(IS_STYPE_##TY(this));		\
 	return (ty##_stype_t*)this->end_type();		\
 }
 
@@ -377,7 +377,7 @@ stype_t *get_int_type(size_t bits)
 		return builtin_named_stypes[BUILTIN_INT64];
 	}
 
-	CRAWL_QASSERT(!"unreachable");
+	KRAWL_QASSERT(!"unreachable");
 }
 
 size_t stype_hash(stype_t *t)
@@ -387,7 +387,7 @@ size_t stype_hash(stype_t *t)
 			if (builtin_named_stypes[i] == t)
 				return i;
 		}
-		CRAWL_QASSERT(!"non-named built-in type in stype_hash");
+		KRAWL_QASSERT(!"non-named built-in type in stype_hash");
 	} else if (IS_STYPE_NAMED(t)) {
 		return (size_t)t;
 	} else if (IS_STYPE_POINTER(t)) {
@@ -415,7 +415,7 @@ size_t stype_hash(stype_t *t)
 		return h;
 	}
 
-	CRAWL_QASSERT(!"unreachable");
+	KRAWL_QASSERT(!"unreachable");
 	return 0;
 }
 
@@ -834,7 +834,7 @@ bool value_fits_in_type(value_t *v, stype_t *t)
 	if (IS_STYPE_ABSTRACT(t))
 		return true;
 	else if (IS_STYPE_INT(t)) {
-		CRAWL_QASSERT(v->type == VALUE_INT);
+		KRAWL_QASSERT(v->type == VALUE_INT);
 		int_stype_t *it = t->as_int();
 		int bits = mpz_sizeinbase(v->xint, 2);
 		if (!it->is_signed) {
@@ -853,7 +853,7 @@ bool value_fits_in_type(value_t *v, stype_t *t)
 			return false;
 		}
 	} else if (IS_STYPE_FLOAT(t)) {
-		CRAWL_QASSERT(v->type == VALUE_FLOAT);
+		KRAWL_QASSERT(v->type == VALUE_FLOAT);
 		if (mpfr_nan_p(v->xfloat) || mpfr_inf_p(v->xfloat) || mpfr_zero_p(v->xfloat))
 			return true;
 
@@ -867,7 +867,7 @@ bool value_fits_in_type(value_t *v, stype_t *t)
 			max_exp = 1024;
 			break;
 		default:
-			CRAWL_QASSERT(0);
+			KRAWL_QASSERT(0);
 		}
 
 		if (exp > max_exp)
@@ -878,7 +878,7 @@ bool value_fits_in_type(value_t *v, stype_t *t)
 		if (v->type == VALUE_STRING)
 			return true;
 
-		CRAWL_QASSERT(v->type == VALUE_INT);
+		KRAWL_QASSERT(v->type == VALUE_INT);
 		int bits = mpz_sizeinbase(v->xint, 2);
 		if (mpz_sgn(v->xint) >= 0 && bits <= t->bits())
 			return true;
@@ -1052,7 +1052,7 @@ struct type_loop_checker_t : stype_visitor_t {
 		std::string out;
 		const char *what = origin->decl->name.c_str();
 		for (size_t i = 0, n = stack.size(); i < n; ++i) {
-			CRAWL_QASSERT(stack[i] != 0);
+			KRAWL_QASSERT(stack[i] != 0);
 			cppsprintf(&out, "\t'%s' depends on the size of '%s'\n",
 				   what, stack[i]->name.c_str());
 			what = stack[i]->name.c_str();
@@ -1082,7 +1082,7 @@ void check_type_for_size_loops(diagnostic_t *diag, named_stype_t *t)
 	if (checker.loop_detected) {
 		t->decl->typeerror = true;
 		for (size_t i = 0, n = checker.stack.size(); i < n; ++i) {
-			CRAWL_QASSERT(checker.stack[i] != 0);
+			KRAWL_QASSERT(checker.stack[i] != 0);
 			checker.stack[i]->typeerror = true;
 		}
 
@@ -1247,7 +1247,7 @@ size_t size_from_array_or_compound(node_t *v)
 {
 	stype_t *t = v->vst.stype;
 	if (IS_STYPE_COMPOUND(t)) {
-		CRAWL_QASSERT(v->type == node_t::COMPOUND_LIT);
+		KRAWL_QASSERT(v->type == node_t::COMPOUND_LIT);
 		compound_lit_t *cl = (compound_lit_t*)v;
 		return cl->elts.size();
 	} else if (IS_STYPE_ARRAY(t)) {
@@ -1508,7 +1508,7 @@ bool func_sdecl_t::has_named_return_values()
 
 stype_vector_t *func_sdecl_t::return_types()
 {
-	CRAWL_QASSERT(stype != 0);
+	KRAWL_QASSERT(stype != 0);
 	func_stype_t *fst = stype->as_func();
 	return &fst->results;
 }
@@ -1531,7 +1531,7 @@ ident_expr_t *import_sdecl_t::get_ident()
 
 void import_sdecl_t::load(brawl_context_t *ctx)
 {
-	CRAWL_QASSERT(spec->path->val.type == VALUE_STRING);
+	KRAWL_QASSERT(spec->path->val.type == VALUE_STRING);
 	std::string path = spec->path->val.to_string();
 
 	if (path.substr(path.size()-2, 2) == ".h")
@@ -1539,7 +1539,7 @@ void import_sdecl_t::load(brawl_context_t *ctx)
 	else {
 		path += ".brl";
 		if (path.find_first_of("./") != 0)
-			path = CRAWL_INSTALL_PREFIX "/include/crawlc/" + path;
+			path = KRAWL_INSTALL_PREFIX "/include/krawl/" + path;
 	}
 
 	FILE *f = fopen(path.c_str(), "rb");
@@ -1672,7 +1672,7 @@ sdecl_t *new_sdecl(sdecl_tracker_t *dt, const char *name, sdecl_type_t type)
 		d = new func_sdecl_t(name);
 		break;
 	default:
-		CRAWL_QASSERT(!"bad type");
+		KRAWL_QASSERT(!"bad type");
 		return 0;
 	}
 	dt->push_back(d);
@@ -1797,7 +1797,7 @@ bool addressable(node_t *n)
 	case node_t::IDENT_EXPR:
 	{
 		ident_expr_t *e = (ident_expr_t*)n;
-		CRAWL_QASSERT(e->sdecl != 0);
+		KRAWL_QASSERT(e->sdecl != 0);
 		return e->sdecl->type == SDECL_VAR;
 	}
 	case node_t::SELECTOR_EXPR:
@@ -2320,7 +2320,7 @@ stype_t *pass2_t::typegen(node_t *expr)
 	}
 	default:
 		fprintf(stderr, "%d\n", expr->type);
-		CRAWL_QASSERT(0);
+		KRAWL_QASSERT(0);
 		break;
 	}
 	return 0;
@@ -2376,7 +2376,7 @@ bool pass2_t::stmt_returns(node_t *stmt)
 			if (!stmt_returns(cc))
 				return false;
 
-			CRAWL_QASSERT(cc->type == node_t::SWITCH_STMT_CASE);
+			KRAWL_QASSERT(cc->type == node_t::SWITCH_STMT_CASE);
 			if (((switch_stmt_case_t*)cc)->exprs.empty())
 				has_default = true;
 		}
@@ -2394,7 +2394,7 @@ bool pass2_t::stmt_returns(node_t *stmt)
 	case node_t::FLOW_STMT:
 		return false;
 	default:
-		CRAWL_ASSERT(false, "unexpected node type in stmt_returns"
+		KRAWL_ASSERT(false, "unexpected node type in stmt_returns"
 			     ": %d\n", stmt->type);
 		break;
 	}
@@ -2404,7 +2404,7 @@ bool pass2_t::stmt_returns(node_t *stmt)
 value_stype_t pass2_t::typecheck_builtin_call_expr(call_expr_t *expr)
 {
 	ident_expr_t *e = is_ident_expr(expr->expr);
-	CRAWL_QASSERT(e != 0);
+	KRAWL_QASSERT(e != 0);
 
 	value_stype_t out;
 	if (e->sdecl->name == "sizeof") {
@@ -2474,7 +2474,7 @@ value_stype_t pass2_t::typecheck_basic_lit_expr(basic_lit_expr_t *expr)
 		out.value = value_t(u);
 		break;
 	default:
-		CRAWL_QASSERT(0);
+		KRAWL_QASSERT(0);
 		break;
 	}
 
@@ -2626,7 +2626,7 @@ value_stype_t pass2_t::typecheck_ident_expr(ident_expr_t *expr)
 				diag->report(m);
 				return value_stype_t();
 			}
-			CRAWL_QASSERT(cur_const_decl->iota >= 0);
+			KRAWL_QASSERT(cur_const_decl->iota >= 0);
 			out.value = value_t(cur_const_decl->iota);
 		} else
 			out.value = csd->value;
@@ -2699,7 +2699,7 @@ bool pass2_t::typecheck_call_expr_args(call_expr_t *expr,
 		c->vst = vst;
 
 		// set up type args
-		CRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
+		KRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
 		stype_vector_t *r = &vst.stype->as_func()->results;
 		args.assign(r->begin(), r->end());
 		args_n = args.size();
@@ -2829,7 +2829,7 @@ value_stype_t pass2_t::typecheck_call_expr(call_expr_t *expr, bool mok)
 	}
 
 	if (mok) {
-		CRAWL_QASSERT(expr->mexpected != 0);
+		KRAWL_QASSERT(expr->mexpected != 0);
 		if (expr->mexpected != ft->results.size()) {
 			expr->typeerror = true;
 			source_loc_range_t range = expr->source_loc_range();
@@ -2941,7 +2941,7 @@ value_stype_t pass2_t::typecheck_selector_expr(selector_expr_t *expr)
 
 	if (IS_STYPE_MODULE(op.stype)) {
 		ident_expr_t *ident = is_ident_expr(expr->expr);
-		CRAWL_QASSERT(ident && ident->sdecl->type == SDECL_IMPORT);
+		KRAWL_QASSERT(ident && ident->sdecl->type == SDECL_IMPORT);
 
 		import_sdecl_t *id = (import_sdecl_t*)ident->sdecl;
 		unordered_map<std::string, sdecl_t*>::iterator it;
@@ -3096,7 +3096,7 @@ value_stype_t pass2_t::typecheck_expr(node_t *expr)
 		return e->vst;
 	}
 	default:
-		CRAWL_QASSERT(!"bad expression type");
+		KRAWL_QASSERT(!"bad expression type");
 	}
 	return value_stype_t();
 }
@@ -3143,7 +3143,7 @@ stype_t *pass2_t::typecheck_var_init(node_t *init, int index)
 	if (index != -1) {
 		// special case, init expr must be a call expr
 		call_expr_t *c = is_call_expr(init);
-		CRAWL_QASSERT(c != 0);
+		KRAWL_QASSERT(c != 0);
 
 		value_stype_t vst;
 		if (!c->vst.stype) {
@@ -3171,8 +3171,8 @@ static void pass2_declare(std::vector<sdecl_t*> *d, void *data)
 
 void pass2_t::declare_many(std::vector<sdecl_t*> *decls)
 {
-	CRAWL_QASSERT(!decls->empty());
-	CRAWL_QASSERT(cur_scope != 0);
+	KRAWL_QASSERT(!decls->empty());
+	KRAWL_QASSERT(cur_scope != 0);
 
 	// var a, b = 10, 10;
 	// both 'a' and 'b' has scope which doesn't have them
@@ -3222,7 +3222,7 @@ void pass2_t::declare_many(std::vector<sdecl_t*> *decls)
 		if (d) {
 			// shouldn't fail at this point
 			bool ok = cur_scope->add(d);
-			CRAWL_QASSERT(ok == true);
+			KRAWL_QASSERT(ok == true);
 		}
 	}
 }
@@ -3291,7 +3291,7 @@ void pass2_t::typecheck_decl_stmt(decl_stmt_t *stmt)
 		return;
 	}
 
-	CRAWL_QASSERT(what != 0);
+	KRAWL_QASSERT(what != 0);
 
 	source_loc_range_t range = stmt->decl->source_loc_range();
 	message_t *m;
@@ -3319,7 +3319,7 @@ void pass2_t::typecheck_return_stmt(return_stmt_t *stmt)
 
 		c->vst = vst;
 
-		CRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
+		KRAWL_QASSERT(vst.stype->type == STYPE_FUNC);
 		stype_vector_t *r = &vst.stype->as_func()->results;
 		returns.assign(r->begin(), r->end());
 		returns_n = returns.size();
@@ -3650,7 +3650,7 @@ void pass2_t::typecheck_for_stmt(for_stmt_t *stmt)
 
 void pass2_t::typecheck_switch_stmt_case(switch_stmt_case_t *stmt)
 {
-	CRAWL_QASSERT(cur_switch_stmt != 0);
+	KRAWL_QASSERT(cur_switch_stmt != 0);
 	node_t *se = cur_switch_stmt->expr;
 	for (size_t i = 0, n = stmt->exprs.size(); i < n; ++i) {
 		node_t *e = stmt->exprs[i];
@@ -3798,7 +3798,7 @@ void pass2_t::typecheck_stmt(node_t *stmt)
 	case node_t::FLOW_STMT:
 		break;
 	default:
-		CRAWL_QASSERT(!"bad statement type");
+		KRAWL_QASSERT(!"bad statement type");
 	}
 }
 
@@ -3928,7 +3928,7 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 					realize_expr_type(vsd->init, ctx);
 
 				stype_t *t = vsd->init->vst.stype;
-				CRAWL_QASSERT(t != 0 && t->type == STYPE_FUNC);
+				KRAWL_QASSERT(t != 0 && t->type == STYPE_FUNC);
 				if (IS_STYPE_ABSTRACT(vsd->stype))
 					vsd->stype = t->as_func()->results[vsd->index];
 			} else {
@@ -3973,7 +3973,7 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 		fsd->incycle = true;
 
 		func_stype_t *ft = typegen(fsd->decl->ftype)->as_func();
-		CRAWL_QASSERT(IS_STYPE_FUNC(ft));
+		KRAWL_QASSERT(IS_STYPE_FUNC(ft));
 		if (ft) {
 			fsd->stype = ft;
 		} else {
@@ -4031,7 +4031,7 @@ bool pass2_t::is_function_loop(sdecl_t *f)
 		if (recursion_stack[i]->type != SDECL_FUNC)
 			return false;
 	}
-	CRAWL_QASSERT(!"unreachable");
+	KRAWL_QASSERT(!"unreachable");
 	return false;
 }
 
@@ -4041,7 +4041,7 @@ size_t pass2_t::find_loop_start(sdecl_t *d)
 		if (recursion_stack[i] == d)
 			return (size_t)i;
 	}
-	CRAWL_QASSERT(!"unreachable");
+	KRAWL_QASSERT(!"unreachable");
 	return 0;
 }
 
@@ -4164,7 +4164,7 @@ void pass2_t::realize_compound_lit_type(compound_lit_t *expr, stype_t *ctx)
 		ast = ctx->as_array();
 		n_expected = ast->size;
 	} else {
-		CRAWL_QASSERT(IS_STYPE_STRUCT(ctx));
+		KRAWL_QASSERT(IS_STYPE_STRUCT(ctx));
 		sst = ctx->as_struct();
 		n_expected = sst->fields.size();
 	}
@@ -4216,7 +4216,7 @@ void pass2_t::realize_selector_expr_type(selector_expr_t *expr, stype_t *ctx)
 
 void pass2_t::realize_expr_type(node_t *expr, stype_t *ctx)
 {
-	CRAWL_QASSERT(expr->is_expr());
+	KRAWL_QASSERT(expr->is_expr());
 	if (expr->vst.value.type != VALUE_NONE) {
 		if (!IS_STYPE_ABSTRACT(expr->vst.stype))
 			return;
@@ -4227,7 +4227,7 @@ void pass2_t::realize_expr_type(node_t *expr, stype_t *ctx)
 		if (!ctx)
 			ctx = default_abstract_context(vst->stype);
 
-		CRAWL_QASSERT(assignable(vst->stype, ctx));
+		KRAWL_QASSERT(assignable(vst->stype, ctx));
 		stype_t *from = vst->stype;
 		stype_t *to = ctx;
 		vst->stype = ctx;
@@ -4313,7 +4313,7 @@ void pass2_t::realize_expr_type(node_t *expr, stype_t *ctx)
 	case node_t::TYPE_EXPR:
 		break; // ignore this one
 	default:
-		CRAWL_QASSERT(!"bad expression type");
+		KRAWL_QASSERT(!"bad expression type");
 	}
 }
 
@@ -4328,7 +4328,7 @@ stype_t *pass2_t::non_abstract_or_null(binary_expr_t *expr)
 
 stype_t *pass2_t::default_abstract_context(stype_t *abstract)
 {
-	CRAWL_QASSERT(IS_STYPE_ABSTRACT(abstract));
+	KRAWL_QASSERT(IS_STYPE_ABSTRACT(abstract));
 	if (IS_STYPE_INT(abstract))
 		return builtin_named_stypes[BUILTIN_INT32];
 	else if (IS_STYPE_FLOAT(abstract))
@@ -4364,17 +4364,17 @@ value_t pass2_t::eval_binop(value_stype_t *vs1, value_stype_t *vs2,
 
 	if (IS_STYPE_FLOAT(optype)) {
 		if (v1.type != VALUE_FLOAT) {
-			CRAWL_QASSERT(v1.type == VALUE_INT);
+			KRAWL_QASSERT(v1.type == VALUE_INT);
 			v1 = v1.to_float();
 		}
 		if (v2.type != VALUE_FLOAT) {
-			CRAWL_QASSERT(v2.type == VALUE_INT);
+			KRAWL_QASSERT(v2.type == VALUE_INT);
 			v2 = v2.to_float();
 		}
 		out = eval_float_binop(&v1, &v2, expr);
 	} else if (IS_STYPE_POINTER_OR_INT(optype)) {
 		if (v1.type != VALUE_INT) {
-			CRAWL_QASSERT(v1.type == VALUE_FLOAT);
+			KRAWL_QASSERT(v1.type == VALUE_FLOAT);
 			if (!mpfr_integer_p(v1.xfloat)) {
 				source_loc_range_t ranges[] = {
 					expr->lhs->source_loc_range()
@@ -4390,7 +4390,7 @@ value_t pass2_t::eval_binop(value_stype_t *vs1, value_stype_t *vs2,
 			v1 = v1.to_int();
 		}
 		if (v2.type != VALUE_INT) {
-			CRAWL_QASSERT(v2.type == VALUE_FLOAT);
+			KRAWL_QASSERT(v2.type == VALUE_FLOAT);
 			if (!mpfr_integer_p(v2.xfloat)) {
 				source_loc_range_t ranges[] = {
 					expr->rhs->source_loc_range()
@@ -4411,13 +4411,13 @@ value_t pass2_t::eval_binop(value_stype_t *vs1, value_stype_t *vs2,
 		// boolean operation, but value type is int (1 or 0)
 		out = eval_bool_binop(&v1, &v2, expr);
 	} else {
-		CRAWL_QASSERT(!"unexpected case");
+		KRAWL_QASSERT(!"unexpected case");
 	}
 
 	if (out.type == VALUE_ERROR)
 		return out;
 
-	CRAWL_QASSERT(out.type != VALUE_NONE);
+	KRAWL_QASSERT(out.type != VALUE_NONE);
 
 	// check whether type is large enough to hold the value
 	if (!value_fits_in_type(&out, result)) {
@@ -4474,8 +4474,8 @@ value_t pass2_t::eval_unop(value_stype_t *v, stype_t *result, unary_expr_t *expr
 value_t pass2_t::eval_string_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 {
 	std::string s;
-	CRAWL_QASSERT(v1->type == VALUE_STRING);
-	CRAWL_QASSERT(v2->type == VALUE_STRING);
+	KRAWL_QASSERT(v1->type == VALUE_STRING);
+	KRAWL_QASSERT(v2->type == VALUE_STRING);
 	switch (expr->tok) {
 	case TOK_PLUS:
 		s = v1->xstr;
@@ -4490,7 +4490,7 @@ value_t pass2_t::eval_string_binop(value_t *v1, value_t *v2, binary_expr_t *expr
 			return value_t(1);
 		return value_t(0);
 	default:
-		CRAWL_QASSERT(!"invalid op for eval_string_binop");
+		KRAWL_QASSERT(!"invalid op for eval_string_binop");
 		break;
 	}
 	return value_t::error;
@@ -4498,8 +4498,8 @@ value_t pass2_t::eval_string_binop(value_t *v1, value_t *v2, binary_expr_t *expr
 
 value_t pass2_t::eval_int_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 {
-	CRAWL_QASSERT(v1->type == VALUE_INT);
-	CRAWL_QASSERT(v2->type == VALUE_INT);
+	KRAWL_QASSERT(v1->type == VALUE_INT);
+	KRAWL_QASSERT(v2->type == VALUE_INT);
 
 	const char *msg;
 	mp_bitcnt_t nbits;
@@ -4587,12 +4587,12 @@ value_t pass2_t::eval_int_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 			mpz_set_ui(out.xint, 1);
 		return out;
 	default:
-		CRAWL_QASSERT(!"invalid op for eval_int_binop");
+		KRAWL_QASSERT(!"invalid op for eval_int_binop");
 		break;
 	}
 
 	// if we got here, we have an error
-	CRAWL_QASSERT(msg != 0);
+	KRAWL_QASSERT(msg != 0);
 	source_loc_range_t ranges[] = {
 		expr->lhs->source_loc_range(),
 		expr->rhs->source_loc_range()
@@ -4606,8 +4606,8 @@ value_t pass2_t::eval_int_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 
 value_t pass2_t::eval_float_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 {
-	CRAWL_QASSERT(v1->type == VALUE_FLOAT);
-	CRAWL_QASSERT(v2->type == VALUE_FLOAT);
+	KRAWL_QASSERT(v1->type == VALUE_FLOAT);
+	KRAWL_QASSERT(v2->type == VALUE_FLOAT);
 
 	const char *msg;
 	value_t out;
@@ -4652,12 +4652,12 @@ value_t pass2_t::eval_float_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 	case TOK_GE:
 		return value_t(mpfr_cmp(v1->xfloat, v2->xfloat) >= 0 ? 1 : 0);
 	default:
-		CRAWL_QASSERT(!"invalid op for eval_float_binop");
+		KRAWL_QASSERT(!"invalid op for eval_float_binop");
 		break;
 	}
 
 	// if we got here, we have an error
-	CRAWL_QASSERT(msg != 0);
+	KRAWL_QASSERT(msg != 0);
 	source_loc_range_t ranges[] = {
 		expr->lhs->source_loc_range(),
 		expr->rhs->source_loc_range()
@@ -4671,8 +4671,8 @@ value_t pass2_t::eval_float_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 
 value_t pass2_t::eval_bool_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 {
-	CRAWL_QASSERT(v1->type == VALUE_INT);
-	CRAWL_QASSERT(v2->type == VALUE_INT);
+	KRAWL_QASSERT(v1->type == VALUE_INT);
+	KRAWL_QASSERT(v2->type == VALUE_INT);
 
 	value_t out(0); // init to INT
 
@@ -4694,7 +4694,7 @@ value_t pass2_t::eval_bool_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 			mpz_set_ui(out.xint, 1);
 		return out;
 	default:
-		CRAWL_QASSERT(!"invalid op for eval_bool_binop");
+		KRAWL_QASSERT(!"invalid op for eval_bool_binop");
 		break;
 	}
 	return value_t::error;
@@ -4702,7 +4702,7 @@ value_t pass2_t::eval_bool_binop(value_t *v1, value_t *v2, binary_expr_t *expr)
 
 value_t pass2_t::eval_int_unop(value_t *v, int_stype_t *t, unary_expr_t *expr)
 {
-	CRAWL_QASSERT(v->type == VALUE_INT);
+	KRAWL_QASSERT(v->type == VALUE_INT);
 	value_t out(0);
 
 	switch (expr->tok) {
@@ -4732,7 +4732,7 @@ value_t pass2_t::eval_int_unop(value_t *v, int_stype_t *t, unary_expr_t *expr)
 		}
 		return out;
 	default:
-		CRAWL_QASSERT(!"invalid op for eval_int_unop");
+		KRAWL_QASSERT(!"invalid op for eval_int_unop");
 		break;
 	}
 	return value_t::error;
@@ -4740,7 +4740,7 @@ value_t pass2_t::eval_int_unop(value_t *v, int_stype_t *t, unary_expr_t *expr)
 
 value_t pass2_t::eval_float_unop(value_t *v, unary_expr_t *expr)
 {
-	CRAWL_QASSERT(v->type == VALUE_FLOAT);
+	KRAWL_QASSERT(v->type == VALUE_FLOAT);
 	value_t out;
 	out.type = VALUE_FLOAT;
 	mpfr_init(out.xfloat);
@@ -4753,7 +4753,7 @@ value_t pass2_t::eval_float_unop(value_t *v, unary_expr_t *expr)
 		mpfr_neg(out.xfloat, v->xfloat, MPFR_RNDN);
 		return out;
 	default:
-		CRAWL_QASSERT(!"invalid op for eval_float_unop");
+		KRAWL_QASSERT(!"invalid op for eval_float_unop");
 		break;
 	}
 	return value_t::error;
@@ -4761,7 +4761,7 @@ value_t pass2_t::eval_float_unop(value_t *v, unary_expr_t *expr)
 
 value_t pass2_t::eval_bool_unop(value_t *v, unary_expr_t *expr)
 {
-	CRAWL_QASSERT(v->type == VALUE_INT);
+	KRAWL_QASSERT(v->type == VALUE_INT);
 	value_t out(0);
 
 	switch (expr->tok) {
@@ -4769,7 +4769,7 @@ value_t pass2_t::eval_bool_unop(value_t *v, unary_expr_t *expr)
 		mpz_set_ui(out.xint, mpz_cmp_si(v->xint, 0) == 0 ? 1 : 0);
 		return out;
 	default:
-		CRAWL_QASSERT(!"invalid op for eval_bool_unop");
+		KRAWL_QASSERT(!"invalid op for eval_bool_unop");
 		break;
 	}
 	return value_t::error;

@@ -1,12 +1,12 @@
-Crawl by example
+Krawl by example
 ================
 
-Crawl is a new vision of the C programming language. The idea is to fix all
+Krawl is a new vision of the C programming language. The idea is to fix all
 small and sometimes annoying C problems without adding any new features.
 Although replacing one feature with another is allowed, like it is planned for
 the C preprocessor (it is being replaced by a module system and simple
 templates system, which isn't done yet). I'm trying hard to keep the spirit of
-C in Crawl alive and I really hope Crawl will give a rebirth to C. I do believe
+C in Krawl alive and I really hope Krawl will give a rebirth to C. I do believe
 C is eternal, but it doesn't mean it has to keep its form unchanged.
 
 Summary of differences with C
@@ -36,15 +36,15 @@ Differences with C in details
 
 Context-independent grammar
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The new grammar for Crawl was taken from the Go programming language. It was
-tweaked a bit in order to suit semantics of the Crawl better. It's important to
+The new grammar for Krawl was taken from the Go programming language. It was
+tweaked a bit in order to suit semantics of the Krawl better. It's important to
 have a context-independent grammar, because it adheres the KISS principle and
-you can easily write a parser for a grammar like that. Crawl's grammar is also
+you can easily write a parser for a grammar like that. Krawl's grammar is also
 LALR(1) friendly and can be implemented without any parser hacks (it's worth
 mentioning that it requires one simple lexer hack, but it's really nothing).
 Let's see how it looks like:
 
-[source,crawl]
+[source,krawl]
 -------------
 import (
 	"stdio.h"
@@ -71,11 +71,11 @@ func main(argc int, argv **byte) int {
 
 Declarations
 ^^^^^^^^^^^^
-Declarations in Crawl look reversed to a C programmer, but actually they are
+Declarations in Krawl look reversed to a C programmer, but actually they are
 more readable and one can easily read every declaration from left to right.
 Some examples:
 
-[source,crawl]
+[source,krawl]
 -------------
 // 'x' and 'y' are arrays containing 10 pointers to int
 var x, y [10]*int
@@ -101,7 +101,7 @@ func printf(fmt *byte, ...) int
 
 No type qualifiers
 ~~~~~~~~~~~~~~~~~~
-Crawl has no type qualifiers, in C the most widely used one is a +const+ type
+Krawl has no type qualifiers, in C the most widely used one is a +const+ type
 qualifier. When two other type qualifiers in C are optimizier hints (+restrict+
 and +volatile+) +const+ is a semantic modifying qualifier and what's more
 scary, it is viral. By that I mean that once you've used it in one place, you
@@ -110,7 +110,7 @@ about that. The end result here, it causes many maintenance problems and solves
 zero real problems. Keyword +const+ should prevent accidental writes to a
 memory location, but the most horrible bugs, which are buffer overflow writes,
 don't care about +const+. As simple as that, no +const+ type qualifier in
-Crawl. Constants in Crawl have completely different meaning.
+Krawl. Constants in Krawl have completely different meaning.
 
 NOTE: Most likely +volatile+ and +restrict+ will be added in future in some
 form.
@@ -140,25 +140,25 @@ if (a & (mask != 0))
 
 Which most likely isn't what was a programmer's intention. In C it doesn't
 matter, because in C boolean expression is defined as integer being != 0 or ==
-0. In a language with a real boolean type it matters. Crawl has corrected
+0. In a language with a real boolean type it matters. Krawl has corrected
 operator precedence.
 
 Real module system
 ~~~~~~~~~~~~~~~~~~
 Preprocessor based module system is a huge pain, everyone knows it. Many
-languages since then started to implement various module systems. Crawl of
+languages since then started to implement various module systems. Krawl of
 course follows this tendency. C\++ decided to keep C's module system for the
 sake of compatibility, but it was a horrible decision. We all realize that now,
-when C++ code takes ages to compile. Of course Crawl has a proper module
+when C++ code takes ages to compile. Of course Krawl has a proper module
 system, but since one of the priorities for the language was to keep it C
 friendly, this module system also can import C header files directly. And as
-many of you may think it slows down compilation, it's not true. Crawl uses
-smart caching scheme for C header modules. Hopefully, Crawl's module system
-will allow us to make Crawl compilers very fast.
+many of you may think it slows down compilation, it's not true. Krawl uses
+smart caching scheme for C header modules. Hopefully, Krawl's module system
+will allow us to make Krawl compilers very fast.
 
 Type inference
 ~~~~~~~~~~~~~~
-Crawl supports full type inference in hot spots, where it matters a lot.
+Krawl supports full type inference in hot spots, where it matters a lot.
 Compiler should help programmer in cases where it can do so. Removing tedious
 repitition is one of them. In C code you often see declarations like that:
 
@@ -169,17 +169,17 @@ MyMegaType *concrete = (MyMegaType*)abstract;
 
 Obviously typing full type name twice is a pointless activity. Compiler knows
 the type of `(MyMegaType*)abstract` expression. Why can't we use that fact?
-We can. Crawl has "declare and initialize" operator which declares a variable
+We can. Krawl has "declare and initialize" operator which declares a variable
 and infers its type using initializer type information:
 
-[source,crawl]
+[source,krawl]
 ------------------
 concrete := abstract.(*MyMegaType)
 ------------------
 
 Few other example type inference examples:
 
-[source,crawl]
+[source,krawl]
 ------------------
 // 'i' is int
 i := 0
@@ -195,11 +195,11 @@ All variables are zero-initialized
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Most compilers/runtimes provide that kind of behaviour by default anyway.
 Currently we have enough horsepower in CPUs to forget about this tiny thing.
-But Crawl is a low level language and I understand that maybe, there will be a
+But Krawl is a low level language and I understand that maybe, there will be a
 place, where having uninitialized variables matters. There is a way to remove
 zero-initializing behaviour. Just like in the D programming language:
 
-[source,crawl]
+[source,krawl]
 ------------------
 var x int        // zero
 var y int = void // undefined (stack garbage)
@@ -214,9 +214,9 @@ Multiple return values
 ~~~~~~~~~~~~~~~~~~~~~~
 This feature is simply useful. Sometimes you have more than one value to return
 from a function and defining a structure for only that purpose is kind of
-expensive. Crawl allows you to return multiple values from a function:
+expensive. Krawl allows you to return multiple values from a function:
 
-[source,crawl]
+[source,krawl]
 ------------------
 func GetSize() (int, int) {
 	w := CalculateWidth()
@@ -231,10 +231,10 @@ func UseSize() {
 ------------------
 
 Another small feature in this area which is worth mentioning is named return
-values. Crawl provides a way to name return values of a function. In this case
+values. Krawl provides a way to name return values of a function. In this case
 they are zero-initialized:
 
-[source,crawl]
+[source,krawl]
 ------------------
 // Get a number of 'A' characters in 'chars'.
 func CountA(chars *byte, num int) (count int) {
@@ -248,11 +248,11 @@ func CountA(chars *byte, num int) (count int) {
 
 Tuple assignments
 ~~~~~~~~~~~~~~~~~
-As you have probably seen already, Crawl allows you to declare multiple
-variables at the same time and Crawl has multiple return values. The same is
+As you have probably seen already, Krawl allows you to declare multiple
+variables at the same time and Krawl has multiple return values. The same is
 true for plain assignments:
 
-[source,crawl]
+[source,krawl]
 ------------------
 func PointerArithmetic(LHS, RHS *Expr) {
 	// swap LHS and RHS if RHS is a pointer
@@ -267,7 +267,7 @@ Switch statement changes
 ~~~~~~~~~~~~~~~~~~~~~~~~
 Many languages these days preserve C switch statement semantics, which is not a
 smart idea at all. I've seen better ways of doing switch statements in
-different programming languages. In Crawl switch statement is quite different
+different programming languages. In Krawl switch statement is quite different
 in behaviour from C's. Here is the list of changes:
 
 - Case clause "breaks" by default. It's actually quite easy to observe that
@@ -275,7 +275,7 @@ in behaviour from C's. Here is the list of changes:
   Apparently using ++break++ as a default behaviour for a switch case clause is
   a good idea:
 +
-[source,crawl]
+[source,krawl]
 -----------------------
 x := 1
 switch x {
@@ -292,11 +292,11 @@ default:
 -----------------------
 
 - One place where "fallthrough" behaviour was used a lot is a case clause,
-  which is triggered by multiple different values. Crawl allows you to specify
+  which is triggered by multiple different values. Krawl allows you to specify
   multiple values for each case clause directly avoiding another portion of
   repitition:
 +
-[source,crawl]
+[source,krawl]
 -----------------------
 var x uint = GetX()
 switch x {
@@ -312,7 +312,7 @@ default:
 - Of course sometimes you just need to have a "fallthrough" behavior, a new
   keyword - ++fallthrough++ was added for that purpose:
 +
-[source,crawl]
+[source,krawl]
 -----------------------
 x := 1
 switch x {
@@ -336,10 +336,10 @@ case 3:
   base for variant selection mechanism? It's simply inefficient. The only code
   I can imagine where it works is a primitive command line or config parsing.
   On the other hand a case where you have an if else "train" in your code is
-  quite common. In Crawl switch statements have a second form, which allows
+  quite common. In Krawl switch statements have a second form, which allows
   you to write if else "trains" easier:
 +
-[source,crawl]
+[source,krawl]
 -----------------------
 // this code:
 flags := GetFlags()
@@ -369,7 +369,7 @@ case flags & (FEATURE_A | FEATURE_B | FEATURE_C) != 0:
 And of course you can even use that for string comparison if you really want
 to:
 +
-[source,crawl]
+[source,krawl]
 -----------------------
 s := GetNextOption()
 switch {
@@ -386,9 +386,9 @@ default:
 
 Stronger and explicit type system
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-WARNING: This section is out-dated. Crawl has C-like unrestricted type system.
+WARNING: This section is out-dated. Krawl has C-like unrestricted type system.
 
-Crawl's type system is much more explicit than C's, there are no implicit type
+Krawl's type system is much more explicit than C's, there are no implicit type
 casts. Floating point type cannot be used as an integer, integer cannot be used
 as a boolean, unsigned integer cannot be used as a signed integer, etc. There
 are some implicit conversions happening during assignments though, for example
@@ -401,7 +401,7 @@ they say its for portability, but defining zillion types doesn't make you
 portable. Let's take a look at example, where type system deals with
 portability:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 // Let's take famous C function:
 
@@ -424,7 +424,7 @@ memcpy(d, s, size)
 // Works safely for both platforms. You see, when you use variable sized types
 // you may want to have an explicit cast to notice your code reader that there
 // is a type change and possible information loss. You don't want to have these
-// things implicit. In Crawl it doesn't matter whether uint32 or uint64 have
+// things implicit. In Krawl it doesn't matter whether uint32 or uint64 have
 // the same size as size_t or not, they are different types. Therefore you have
 // to introduce a cast and this cast will work as your agreement for possible
 // information loss:
@@ -442,7 +442,7 @@ In C arrays have weird behaviour, in some places they are values in other
 places they are pointer types. If you use an array type as a function argument
 it becomes a pointer suddenly. And of course you can't assign one array to
 another in C even if they have the same size, but actually it is achievable
-through wrapping them into structs.  Crawl simply uses arrays as if they were
+through wrapping them into structs.  Krawl simply uses arrays as if they were
 ++struct { T _[N]; }++ in C. You can copy arrays, you can pass arrays as
 arguments to functions (and it will make a copy), etc. It's a tiny thing, but
 it's good to have a clear conceptual vision of array types in a language.
@@ -450,9 +450,9 @@ it's good to have a clear conceptual vision of array types in a language.
 There is also one thing I haven't thought about a lot. Array operations or
 vector operations. We all know that CPUs are stream oriented these days and
 most of them have SSE instructions which support vector operations. Maybe it
-makes sense to allow things like that in Crawl:
+makes sense to allow things like that in Krawl:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 var a []int = {1, 2, 3}
 var b []int = {4, 5, 6}
@@ -472,7 +472,7 @@ Not a big addition, but having it is useful sometimes. Uninterpreted strings
 works just fine for regular expressions. Multiline strings are good for things
 like templates or something. Examples:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 var uninterpreted = `\n is \n here and it's not a 0x0A`
 var multiline = 
@@ -489,9 +489,9 @@ ${FOOTER}
 Many C expressions are statements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Probably, it can be interpreted as a bad idea. For example you can't do that in
-Crawl:
+Krawl:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 var p *int
 a := p++
@@ -502,15 +502,15 @@ c := p++
 But at the end, one of the most important things about the code is readability.
 And restricting programmer's ingenuity in that area matters. We've seen all
 those code obfuscation contests, and quite ambigous expressions like:
-`a**++*i++`. In Crawl C's increment/decrement expression is a statement and
+`a**++*i++`. In Krawl C's increment/decrement expression is a statement and
 therefore has only postfix form. There is no such thing as assignment
-expression in Crawl. The only expression type that has side effects is a
-function call expression. And Crawl guarantees that all expressions with side
+expression in Krawl. The only expression type that has side effects is a
+function call expression. And Krawl guarantees that all expressions with side
 effects are evaluated from left to right (but of course function call argument
 expressions should be evaluated before calling the function, so.. the order is
 depth-first in that sense):
 
-[source,crawl]
+[source,krawl]
 -----------------------
 x[a()], y[b()] = foo(c(), d()), bar(e(), f())
 -----------------------
@@ -535,13 +535,13 @@ And that's how it will be interpreted (using improvised SSA form):
 
 Constant groups and powerful iota
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-In Crawl there are no enums, but you can emulate them using constant groups and
+In Krawl there are no enums, but you can emulate them using constant groups and
 magic ++iota++. Iota is somewhat like C's `__LINE__`, depending on a position
 relative to a ++const++ keyword it changes the value of itself starting from 0
 after each ++const++ keyword. It increments every constant specification
 clause. Take a look:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 const (
 	ZERO = iota
@@ -560,7 +560,7 @@ clause contains no initializer, it takes an initializer of a previous clause.
 Of course first constant specification clause must have a non-empty
 initializer. The example above can be written as:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 const (
 	ZERO = iota
@@ -575,7 +575,7 @@ const (
 But as you can see, `iota` is more powerful than plain enums. You can create
 various interesting thing with it:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 // reversing
 const (
@@ -597,7 +597,7 @@ const (
 	BIT5             // 16 (0b00010000)
 )
 
-// bit masks (Crawl uses ^ as unary NOT, in C it's ~)
+// bit masks (Krawl uses ^ as unary NOT, in C it's ~)
 const (
 	ALL_BUT_BIT1 = ^(1 << iota).(uint8) // 254 (0b11111110)
 	ALL_BUT_BIT2                        // 253 (0b11111101)
@@ -609,11 +609,11 @@ const (
 
 Boolean type, and predefined constants
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-There is a real boolean type in Crawl, just like in C++. And many statements
+There is a real boolean type in Krawl, just like in C++. And many statements
 have a requirement for their parts to have an expression of boolean type. For
 example:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 x := 84
 
@@ -624,7 +624,7 @@ if x { do_something() }
 if x != 0 { do_something() }
 -----------------------
 
-In Crawl, there are three more predefined constants other than `iota`. They
+In Krawl, there are three more predefined constants other than `iota`. They
 don't have any special meaning however.
 
 - `true` is a predefined constant of an abstract boolean type, compatible with
@@ -638,7 +638,7 @@ Since boolean binary expressions result in an abstract boolean type as well,
 you can make all these constants by yourself (that's why I'm not calling them
 special, they are just predefined):
 
-[source,crawl]
+[source,krawl]
 -----------------------
 const (
 	true = 1 != 0
@@ -649,11 +649,11 @@ const (
 
 Arbitrary precision constants
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-In Crawl constants are of an abstract type by default. There are four abstract
+In Krawl constants are of an abstract type by default. There are four abstract
 types: boolean, integer, float and string.
 
 - Abstract boolean is a result of all binary boolean operations, like `a > b`,
-  etc. Crawl has two predefined constants of this type: `true` and `false`.
+  etc. Krawl has two predefined constants of this type: `true` and `false`.
   Abstract boolean type is simply compatible with any other non-abstract type.
 
 - Abstract integer is a type of an integer literal, like `31337`. It can be
@@ -670,7 +670,7 @@ types: boolean, integer, float and string.
 
 Here is the simple example that shows how arbitrary precision constants work:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 const Huge = 1 << 100
 const Four int8 = Huge >> 98
@@ -679,9 +679,9 @@ const Four int8 = Huge >> 98
 Unified for statement
 ~~~~~~~~~~~~~~~~~~~~~
 In C there were few loop statements: `while()`, `for(;;)` and `do; while()`. In
-Crawl it's all now a single `for` statment with different forms. Examples:
+Krawl it's all now a single `for` statment with different forms. Examples:
 
-[source,crawl]
+[source,krawl]
 -----------------------
 // while-like
 i := 0
@@ -710,7 +710,7 @@ accessor does both types of field access. Rules are simple: if the operand is a
 struct, then it's a direct access operation, if the operand is a pointer to
 struct, then it's an indirect access operation.
 
-[source,crawl]
+[source,krawl]
 -----------------------
 type Element struct {
 	a, b, c int

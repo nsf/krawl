@@ -6,7 +6,7 @@
 #include <stdio.h>
 #line 10 "parser.y"
 
-	#include "crawlc.hpp"
+	#include "krawl.hpp"
 	#include <stdlib.h>
 	#include <stdio.h>
 	#include <assert.h>

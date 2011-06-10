@@ -8,7 +8,7 @@
 %left DIVIDE TIMES MOD SHIFTL SHIFTR AND ANDNOT.
 
 %include {
-	#include "crawlc.hpp"
+	#include "krawl.hpp"
 	#include <stdlib.h>
 	#include <stdio.h>
 	#include <assert.h>

@@ -5,7 +5,7 @@ $problems = []
 
 def run_test(f)
 	# compile
-	%x[crawlc -o test #{f}]
+	%x[krawl -o test #{f}]
 	out = %x[./test]
 	gold = IO.read("#{f}.expected") rescue "To be determined"
 
@@ -18,13 +18,13 @@ def run_test(f)
 end
 
 if ARGV.one? then
-	%x[crawlc -o test #{ARGV[0]}]
+	%x[krawl -o test #{ARGV[0]}]
 	puts %x[./test]
 	File.delete("test")
 	exit 0
 end
 
-Dir["*.crl"].sort.each do |f|
+Dir["*.krl"].sort.each do |f|
 	if run_test(f)
 		STDOUT.print("+")
 	else

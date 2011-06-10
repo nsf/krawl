@@ -27,24 +27,24 @@ using std::tr1::hash;
 // Utils
 //==============================================================================
 
-#ifdef CRAWL_NO_ASSERT
-	#define CRAWL_ASSERT(cond, ...) ((void)0)
-	#define CRAWL_QASSERT(cond) ((void)0)
+#ifdef KRAWL_NO_ASSERT
+	#define KRAWL_ASSERT(cond, ...) ((void)0)
+	#define KRAWL_QASSERT(cond) ((void)0)
 #else
-	#define CRAWL_ASSERT(cond, ...)						\
+	#define KRAWL_ASSERT(cond, ...)						\
 	do {									\
 		if (!(cond)) {							\
-			fprintf(stderr, "CRAWL_ASSERT(%s) (%s:%d): ", #cond,	\
+			fprintf(stderr, "KRAWL_ASSERT(%s) (%s:%d): ", #cond,	\
 				pretty_print_FILE(__FILE__), __LINE__);		\
 			fprintf(stderr, __VA_ARGS__);				\
 			fprintf(stderr, "\n");					\
 			abort();						\
 		}								\
 	} while (0)
-	#define CRAWL_QASSERT(cond)						\
+	#define KRAWL_QASSERT(cond)						\
 	do {									\
 		if (!(cond)) {							\
-			fprintf(stderr, "CRAWL_QASSERT(%s) (%s:%d)\n", #cond,	\
+			fprintf(stderr, "KRAWL_QASSERT(%s) (%s:%d)\n", #cond,	\
 				pretty_print_FILE(__FILE__), __LINE__);		\
 			abort();						\
 		}								\
@@ -1822,7 +1822,7 @@ struct pass3_t {
 };
 
 //------------------------------------------------------------------------------
-// Brawl (binary crawl format)
+// Brawl (binary krawl format)
 //------------------------------------------------------------------------------
 
 struct FILE_reader_t {

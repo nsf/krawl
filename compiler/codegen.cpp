@@ -1,4 +1,4 @@
-#include "crawlc.hpp"
+#include "krawl.hpp"
 #include <llvm/LLVMContext.h>
 #include <llvm/Module.h>
 #include <llvm/Type.h>
@@ -155,7 +155,7 @@ static void generate_NRV_ret(IRBuilder<> *ir, func_sdecl_t *fsd)
 		// names cannot be empty here
 
 		for (size_t j = 0, m = f->names.size(); j < m; ++j) {
-			CRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
+			KRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
 			var_sdecl_t *d = (var_sdecl_t*)f->names[j]->sdecl;
 			// no need to perform additional assignment magic
 			// types here are a 100% match anyway
@@ -199,7 +199,7 @@ static stype_t *compound_lit_stype_i(compound_lit_t *c, size_t i)
 		struct_stype_t *sst = c->vst.stype->as_struct();
 		return sst->fields[i].type;
 	}
-	CRAWL_ASSERT(false, "unreachable");
+	KRAWL_ASSERT(false, "unreachable");
 }
 
 Constant *llvm_backend_t::llvmconst(value_t *val, const Type *ty)
@@ -237,7 +237,7 @@ Constant *llvm_backend_t::llvmconst(value_t *val, const Type *ty)
 		return ConstantFP::get(ty, d);
 	}
 	default:
-		CRAWL_QASSERT(!"invalid value");
+		KRAWL_QASSERT(!"invalid value");
 		return 0;
 	}
 }
@@ -280,7 +280,7 @@ FunctionType *llvm_backend_t::llvmfunctype(func_stype_t *fst)
 
 const Type *llvm_backend_t::llvmtype(stype_t *st)
 {
-	CRAWL_QASSERT((st->type & STYPE_ABSTRACT) == 0);
+	KRAWL_QASSERT((st->type & STYPE_ABSTRACT) == 0);
 
 	if (st->llvmtype)
 		return st->llvmtype;
@@ -346,7 +346,7 @@ const Type *llvm_backend_t::llvmtype(stype_t *st)
 		REFINE_TMP_TYPE(arrty);
 	}
 
-	CRAWL_QASSERT(st->llvmtype != 0);
+	KRAWL_QASSERT(st->llvmtype != 0);
 	return st->llvmtype;
 }
 
@@ -395,7 +395,7 @@ void llvm_backend_t::codegen_MRV(std::vector<Value*> *values,
 				 std::vector<stype_t*> *vtypes, node_t *expr)
 {
 	call_expr_t *callexpr = is_call_expr(expr);
-	CRAWL_QASSERT(callexpr != 0);
+	KRAWL_QASSERT(callexpr != 0);
 	func_stype_t *fst = callexpr->expr->vst.stype->as_func();
 
 	Value *mrv = codegen_expr_value(callexpr);
@@ -498,7 +498,7 @@ void llvm_backend_t::codegen_flow_stmt(flow_stmt_t *stmt)
 	case TOK_FALLTHROUGH:
 		break; // handled elsewhere
 	default:
-		CRAWL_QASSERT(!"bad token");
+		KRAWL_QASSERT(!"bad token");
 	}
 }
 
@@ -728,7 +728,7 @@ void llvm_backend_t::codegen_decl_stmt(decl_stmt_t *stmt)
 	}
 	default:
 		break;
-		//CRAWL_QASSERT(!"fail");
+		//KRAWL_QASSERT(!"fail");
 	}
 }
 
@@ -841,7 +841,7 @@ void llvm_backend_t::codegen_stmt(node_t *stmt)
 		break;
 	}
 	default:
-		CRAWL_QASSERT(!"bad statement type");
+		KRAWL_QASSERT(!"bad statement type");
 	}
 }
 
@@ -1025,7 +1025,7 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 		return ir->CreateGEP(l, r);
 	}
 
-	CRAWL_QASSERT(IS_STYPE_BOOL(et));
+	KRAWL_QASSERT(IS_STYPE_BOOL(et));
 	if (IS_STYPE_POINTER_OR_INT(lt)) {
 		if (IS_STYPE_POINTER(lt) && IS_STYPE_POINTER(rt)) {
 			if (!are_the_same(lt->end_type(), rt->end_type()))
@@ -1073,7 +1073,7 @@ Value *llvm_backend_t::codegen_binary_expr_raw(Value *l, Value *r, stype_t *et,
 			return ir->CreateFCmpOGE(l, r);
 		}
 	} else {
-		CRAWL_QASSERT(IS_STYPE_BOOL(lt));
+		KRAWL_QASSERT(IS_STYPE_BOOL(lt));
 		switch (tok) {
 		case TOK_EQ:
 			return ir->CreateICmpEQ(l, r);
@@ -1090,7 +1090,7 @@ Value *llvm_backend_t::codegen_binary_expr(binary_expr_t *expr)
 	if (expr->tok != TOK_ANDAND && expr->tok != TOK_OROR) {
 		l = codegen_expr_value(expr->lhs);
 		r = codegen_expr_value(expr->rhs);
-		CRAWL_QASSERT(l && r);
+		KRAWL_QASSERT(l && r);
 		return codegen_binary_expr_raw(l, r, expr->vst.stype,
 					       expr->lhs->vst.stype,
 					       expr->rhs->vst.stype,
@@ -1099,18 +1099,18 @@ Value *llvm_backend_t::codegen_binary_expr(binary_expr_t *expr)
 
 	// one complex case left, '&&' and '||' operators, their semantics
 	// requires me to create branching
-	CRAWL_QASSERT(IS_STYPE_BOOL(expr->lhs->vst.stype));
-	CRAWL_QASSERT(IS_STYPE_BOOL(expr->rhs->vst.stype));
-	CRAWL_QASSERT(expr->tok == TOK_ANDAND || expr->tok == TOK_OROR);
+	KRAWL_QASSERT(IS_STYPE_BOOL(expr->lhs->vst.stype));
+	KRAWL_QASSERT(IS_STYPE_BOOL(expr->rhs->vst.stype));
+	KRAWL_QASSERT(expr->tok == TOK_ANDAND || expr->tok == TOK_OROR);
 
 	// eval LHS and use it as condition
 	Value *cond = codegen_expr_value(expr->lhs);
-	CRAWL_QASSERT(cond != 0);
+	KRAWL_QASSERT(cond != 0);
 
 	// utils
 	BasicBlock *I = ir->GetInsertBlock();
 	Function *f = I->getParent();
-	CRAWL_QASSERT(f != 0);
+	KRAWL_QASSERT(f != 0);
 	const Type *boolty = Type::getInt1Ty(LLGC);
 	Constant *zero = ConstantInt::getNullValue(boolty);
 
@@ -1129,7 +1129,7 @@ Value *llvm_backend_t::codegen_binary_expr(binary_expr_t *expr)
 		// rhs
 		ir->SetInsertPoint(B);
 		Bv = codegen_expr_value(expr->rhs);
-		CRAWL_QASSERT(Bv != 0);
+		KRAWL_QASSERT(Bv != 0);
 		ir->CreateBr(E);
 	// ||: if lhs then true else rhs
 	} else {
@@ -1139,7 +1139,7 @@ Value *llvm_backend_t::codegen_binary_expr(binary_expr_t *expr)
 		// rhs
 		ir->SetInsertPoint(B);
 		Bv = codegen_expr_value(expr->rhs);
-		CRAWL_QASSERT(Bv != 0);
+		KRAWL_QASSERT(Bv != 0);
 		ir->CreateBr(E);
 	}
 	// end block
@@ -1166,19 +1166,19 @@ Value *llvm_backend_t::codegen_unary_expr(unary_expr_t *e)
 
 	switch (e->tok) {
 	case TOK_MINUS:
-		CRAWL_QASSERT(IS_STYPE_NUMBER(e->expr->vst.stype));
+		KRAWL_QASSERT(IS_STYPE_NUMBER(e->expr->vst.stype));
 		return ir->CreateNeg(expr);
 	case TOK_XOR:
-		CRAWL_QASSERT(IS_STYPE_INT(e->expr->vst.stype));
+		KRAWL_QASSERT(IS_STYPE_INT(e->expr->vst.stype));
 		return ir->CreateNot(expr);
 	case TOK_NOT:
-		CRAWL_QASSERT(IS_STYPE_BOOL(e->expr->vst.stype));
+		KRAWL_QASSERT(IS_STYPE_BOOL(e->expr->vst.stype));
 		return ir->CreateNot(expr);
 	case TOK_TIMES:
 		return codegen_load(expr, e->vst.stype);
 	}
 
-	CRAWL_QASSERT(!"unreachable");
+	KRAWL_QASSERT(!"unreachable");
 	return 0;
 }
 
@@ -1257,7 +1257,7 @@ Value *llvm_backend_t::codegen_type_cast_expr(type_cast_expr_t *e)
 Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
 {
 	ident_expr_t *e = is_ident_expr(expr->expr);
-	CRAWL_QASSERT(e != 0);
+	KRAWL_QASSERT(e != 0);
 
 	if (e->sdecl->name == "va_start") {
 		Function *func;
@@ -1281,7 +1281,7 @@ Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
 		std::vector<stype_t*> argtypes;
 
 		if (2 > expr->args.size()) {
-			CRAWL_QASSERT(expr->args.size() == 1);
+			KRAWL_QASSERT(expr->args.size() == 1);
 			codegen_MRV(&args, &argtypes, expr->args[0]);
 		} else {
 			args.push_back(codegen_expr_value(expr->args[0]));
@@ -1303,7 +1303,7 @@ Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
 		return ir->CreateVAArg(arg, ty);
 	}
 
-	CRAWL_QASSERT(!"unreachable");
+	KRAWL_QASSERT(!"unreachable");
 	return 0;
 }
 
@@ -1328,7 +1328,7 @@ Value *llvm_backend_t::codegen_call_expr(call_expr_t *e)
 	// special case, function expects many arguments and call expr contains
 	// only one function call for arguments
 	if (fst->args.size() > e->args.size()) {
-		CRAWL_QASSERT(e->args.size() == 1);
+		KRAWL_QASSERT(e->args.size() == 1);
 		codegen_MRV(&args, &argtypes, e->args[0]);
 	} else {
 		for (size_t i = 0, n = e->args.size(); i < n; ++i) {
@@ -1421,8 +1421,8 @@ Value *llvm_backend_t::codegen_expr_addr(node_t *expr)
 		stype_t *t = e->expr->vst.stype;
 		if (IS_STYPE_MODULE(t)) {
 			ident_expr_t *ident = is_ident_expr(e->expr);
-			CRAWL_QASSERT(ident != 0);
-			CRAWL_QASSERT(ident->sdecl->type == SDECL_IMPORT);
+			KRAWL_QASSERT(ident != 0);
+			KRAWL_QASSERT(ident->sdecl->type == SDECL_IMPORT);
 			import_sdecl_t *id = (import_sdecl_t*)ident->sdecl;
 			return id->decls[e->sel->val]->addr;
 		}
@@ -1463,7 +1463,7 @@ Value *llvm_backend_t::codegen_expr_addr(node_t *expr)
 		break;
 	}
 
-	CRAWL_QASSERT(!"unreachable");
+	KRAWL_QASSERT(!"unreachable");
 	return 0;
 }
 
@@ -1562,7 +1562,7 @@ Value *llvm_backend_t::codegen_cexpr_value(node_t *e)
 
 Value *llvm_backend_t::codegen_cexpr_store(Value *val, Value *addr, node_t *e)
 {
-	CRAWL_QASSERT(e->type == node_t::COMPOUND_LIT);
+	KRAWL_QASSERT(e->type == node_t::COMPOUND_LIT);
 
 	compound_lit_t *c = (compound_lit_t*)e;
 	for (size_t i = 0, n = c->vals.size(); i < n; ++i) {
@@ -1650,7 +1650,7 @@ void llvm_backend_t::codegen_top_func_pre(func_sdecl_t *fsd, const char *prefix)
 	if (strlen(prefix) == 0)
 		name = fsd->name.c_str();
 	else
-		cppsprintf(&name, "_Crl_%s_%s", prefix, fsd->name.c_str());
+		cppsprintf(&name, "_Krl_%s_%s", prefix, fsd->name.c_str());
 
 	const Type *functy = llvmfunctype(fsd->stype->as_func());
 	Function *F = Function::Create(cast<FunctionType>(functy),
@@ -1690,7 +1690,7 @@ void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
 	ir = &ib;
 	ir_alloca = &ib_alloca;
 
-	// hack for main function, call __init_crawl_globals
+	// hack for main function, call __init_krawl_globals
 	if (fsd->name == "main")
 		ir->CreateCall(ir_init->GetInsertBlock()->getParent());
 
@@ -1706,7 +1706,7 @@ void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
 		}
 
 		for (size_t j = 0, m = f->names.size(); j < m; ++j, ++it) {
-			CRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
+			KRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
 			var_sdecl_t *d = (var_sdecl_t*)f->names[j]->sdecl;
 
 			d->addr = ir_alloca->CreateAlloca(llvmtype(d->stype));
@@ -1721,7 +1721,7 @@ void llvm_backend_t::codegen_top_func(func_sdecl_t *fsd)
 			// names cannot be empty here
 
 			for (size_t j = 0, m = f->names.size(); j < m; ++j) {
-				CRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
+				KRAWL_QASSERT(f->names[j]->sdecl->type == SDECL_VAR);
 				var_sdecl_t *d = (var_sdecl_t*)f->names[j]->sdecl;
 
 				const Type *ty = llvmtype(d->stype);
@@ -1790,7 +1790,7 @@ void llvm_backend_t::create_init_func()
 {
 	FunctionType *ft = FunctionType::get(Type::getVoidTy(LLGC), false);
 	Function *f = Function::Create(ft, Function::PrivateLinkage,
-				       "__init_crawl_globals", module);
+				       "__init_krawl_globals", module);
 
 	BasicBlock *entry = BasicBlock::Create(LLGC, "", f);
 	ir_init = new IRBuilder<>(LLGC);

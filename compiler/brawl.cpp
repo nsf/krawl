@@ -1,4 +1,4 @@
-#include "crawlc.hpp"
+#include "krawl.hpp"
 
 //------------------------------------------------------------------------------
 // FILE_reader_t
@@ -28,7 +28,7 @@ uint64_t FILE_reader_t::read_varuint()
 		case VARINT_U64:
 			return read_uint64();
 		default:
-			CRAWL_ASSERT(false, "invalid binary format in FILE_reader_t");
+			KRAWL_ASSERT(false, "invalid binary format in FILE_reader_t");
 			break;
 		}
 	}
@@ -45,7 +45,7 @@ std::string &FILE_reader_t::read_string()
 
 	strbuf.resize(len);
 	size_t read = fread(&strbuf[0], 1, len, file);
-	CRAWL_ASSERT(read == len,
+	KRAWL_ASSERT(read == len,
 		     "failed to read binary data in FILE_reader_t");
 	return strbuf;
 }
@@ -54,7 +54,7 @@ std::string &FILE_reader_t::read_string()
 do {										\
 	ty v;									\
 	size_t read = fread(&v, 1, sizeof(ty), file);				\
-	CRAWL_ASSERT(read == sizeof(ty),					\
+	KRAWL_ASSERT(read == sizeof(ty),					\
 		     "failed to read binary data in FILE_reader_t");		\
 	return v;								\
 } while (0)
@@ -103,7 +103,7 @@ void FILE_writer_t::write_string(const char *str, size_t len)
 {
 	write_varuint(len);
 	size_t written = fwrite(str, 1, len, file);
-	CRAWL_ASSERT(written == len,
+	KRAWL_ASSERT(written == len,
 		     "failed to write binary data in FILE_writer_t");
 }
 
@@ -115,7 +115,7 @@ void FILE_writer_t::write_string(const std::string &cppstr)
 #define WRITE_TYPE(ty)								\
 do {										\
 	size_t written = fwrite(&n, 1, sizeof(ty), file);			\
-	CRAWL_ASSERT(written == sizeof(ty),					\
+	KRAWL_ASSERT(written == sizeof(ty),					\
 		     "failed to write binary data in FILE_writer_t");		\
 } while (0)
 
@@ -242,7 +242,7 @@ int32_t brawl_stypes_t::stype_index(stype_t *t)
 		return builtin_stype_index(t);
 
 	stype_map_t::iterator it = map.find(t);
-	CRAWL_QASSERT(it != map.end());
+	KRAWL_QASSERT(it != map.end());
 	return it->second;
 }
 
@@ -259,7 +259,7 @@ int32_t brawl_stypes_t::builtin_stype_index(stype_t *t)
 				return (-1 - i);
 		}
 	}
-	CRAWL_QASSERT(!"not a built-in type in brawl_stypes_t::builtin_stype_index");
+	KRAWL_QASSERT(!"not a built-in type in brawl_stypes_t::builtin_stype_index");
 	return 0;
 }
 
@@ -303,7 +303,7 @@ void brawl_stypes_t::save(FILE_writer_t *cout)
 		else if (IS_STYPE_FUNC(t))
 			serialize_func(cout, t->as_func());
 		else
-			CRAWL_QASSERT(!"unreachable");
+			KRAWL_QASSERT(!"unreachable");
 	}
 
 	clear();
@@ -435,7 +435,7 @@ void brawl_stypes_t::deserialize_types(FILE_reader_t *cin, size_t n)
 		else if (type & STYPE_FUNC)
 			deserialize_func(cin);
 		else
-			CRAWL_QASSERT(!"bad type");
+			KRAWL_QASSERT(!"bad type");
 
 		stypes.back()->type = type;
 	}
@@ -476,7 +476,7 @@ void brawl_stypes_t::restore_pointers()
 
 void brawl_stypes_t::load(FILE_reader_t *cin)
 {
-	CRAWL_QASSERT(ctx != 0);
+	KRAWL_QASSERT(ctx != 0);
 	clear();
 
 	uint32_t num = cin->read_uint32();
@@ -557,7 +557,7 @@ void brawl_sdecls_t::restore_pointers()
 
 void brawl_sdecls_t::load(FILE_reader_t *cin)
 {
-	CRAWL_QASSERT(ctx != 0);
+	KRAWL_QASSERT(ctx != 0);
 	clear();
 	uint32_t num = cin->read_uint32();
 	deserialize_decls(cin, num);

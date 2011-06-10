@@ -526,7 +526,7 @@ func main(argc int, argv **byte) int {
 	screen = SDL.SDL_SetVideoMode(640, 480, 24, SDL.SDL_HWSURFACE | SDL.SDL_DOUBLEBUF)
 	stdlib.srand(SDL.SDL_GetTicks())
 
-	SDL.SDL_WM_SetCaption("CrawlTris", "CrawlTris")
+	SDL.SDL_WM_SetCaption("KrawlTris", "KrawlTris")
 	SDL.SDL_EnableKeyRepeat(250, 45)
 
 	gs := NewGameSession()

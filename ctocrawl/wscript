@@ -1,8 +1,0 @@
-def build(bld):
-	bld.shlib(
-		source       = 'ctocrawl.cpp',
-		target       = 'ctocrawl',
-		defines      = bld.env.DEFINES_LLVM,
-		install_path = '${PREFIX}/lib/crawlc',
-		use          = 'CLANG_PLUGIN'
-	)

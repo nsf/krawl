@@ -74,7 +74,7 @@ const Type *is_function_proto(const Type *t)
 	return 0;
 }
 
-struct CToCrawlContext {
+struct CToKrawlContext {
 	ASTContext *ctx;
 	SourceManager *srcm;
 	unordered_set<std::string> filenames;
@@ -84,7 +84,7 @@ struct CToCrawlContext {
 	std::string macros;
 	std::string funcmock;
 
-	CToCrawlContext()
+	CToKrawlContext()
 	{
 		macros.reserve(65536);
 		funcmock.reserve(65536);
@@ -92,10 +92,10 @@ struct CToCrawlContext {
 	}
 };
 
-struct CToCrawlASTConsumer : ASTConsumer {
-	CToCrawlContext *ctx;
+struct CToKrawlASTConsumer : ASTConsumer {
+	CToKrawlContext *ctx;
 
-	CToCrawlASTConsumer(CToCrawlContext *ctx): ctx(ctx)
+	CToKrawlASTConsumer(CToKrawlContext *ctx): ctx(ctx)
 	{
 	}
 
@@ -121,7 +121,7 @@ struct CToCrawlASTConsumer : ASTConsumer {
 		return &it->second;
 	}
 
-	std::string struct_body_to_crawl(RecordDecl *rd)
+	std::string struct_body_to_krawl(RecordDecl *rd)
 	{
 		// union case
 		std::string out;
@@ -141,14 +141,14 @@ struct CToCrawlASTConsumer : ASTConsumer {
 
 			out += keyword.str();
 			out += " ";
-			out += clang_type_to_crawl(it->getType().getTypePtr());
+			out += clang_type_to_krawl(it->getType().getTypePtr());
 			out += "; ";
 		}
 		out += "}";
 		return out;
 	}
 
-	std::string clang_type_to_crawl(const Type *t)
+	std::string clang_type_to_krawl(const Type *t)
 	{
 		std::string out;
 
@@ -160,7 +160,7 @@ struct CToCrawlASTConsumer : ASTConsumer {
 				if (bt->getKind() == BuiltinType::Char_S ||
 				    bt->getKind() == BuiltinType::Char_U)
 				{
-					// special case, unspecified char is uint8 in crawl
+					// special case, unspecified char is uint8 in krawl
 					out.append("uint8");
 					return out;
 				}
@@ -200,10 +200,10 @@ struct CToCrawlASTConsumer : ASTConsumer {
 			// check if it's a function pointer
 			const Type *isft = is_function_proto(pt->getPointeeType().getTypePtr());
 			if (isft)
-				return clang_type_to_crawl(isft);
+				return clang_type_to_krawl(isft);
 
 			out += "*";
-			out += clang_type_to_crawl(pt->getPointeeType().getTypePtr());
+			out += clang_type_to_krawl(pt->getPointeeType().getTypePtr());
 			return out;
 		}
 		case Type::Typedef:
@@ -224,20 +224,20 @@ struct CToCrawlASTConsumer : ASTConsumer {
 				return out;
 			}
 
-			out += struct_body_to_crawl(rd);
+			out += struct_body_to_krawl(rd);
 
 			return out;
 		}
 		case Type::TypeOfExpr:
 		{
 			const TypeOfExprType *tot = cast<TypeOfExprType>(t);
-			return clang_type_to_crawl(tot->getUnderlyingExpr()->getType().getTypePtr());
+			return clang_type_to_krawl(tot->getUnderlyingExpr()->getType().getTypePtr());
 		}
 		case Type::ConstantArray:
 		{
 			const ConstantArrayType *cat = cast<ConstantArrayType>(t);
 			cppsprintf(&out, "[%d]", cat->getSize().getZExtValue());
-			out += clang_type_to_crawl(cat->getElementType().getTypePtr());
+			out += clang_type_to_krawl(cat->getElementType().getTypePtr());
 			return out;
 		}
 		case Type::FunctionProto:
@@ -245,26 +245,26 @@ struct CToCrawlASTConsumer : ASTConsumer {
 			const FunctionProtoType *fpt = cast<FunctionProtoType>(t);
 			out += "func (";
 			for (size_t i = 0, n = fpt->getNumArgs(); i < n; ++i) {
-				out += clang_type_to_crawl(fpt->getArgType(i).getTypePtr());
+				out += clang_type_to_krawl(fpt->getArgType(i).getTypePtr());
 				if (i != n-1)
 					out += ", ";
 			}
 			if (fpt->isVariadic())
 				out += ", ...";
 			out += ") ";
-			out += clang_type_to_crawl(fpt->getResultType().getTypePtr());
+			out += clang_type_to_krawl(fpt->getResultType().getTypePtr());
 			return out;
 		}
 		case Type::Paren:
 		{
 			const ParenType *pt = cast<ParenType>(t);
-			return clang_type_to_crawl(pt->getInnerType().getTypePtr());
+			return clang_type_to_krawl(pt->getInnerType().getTypePtr());
 		}
 		case Type::Enum:
 		{
 			const EnumType *et = cast<EnumType>(t);
 			const EnumDecl *ed = et->getDecl();
-			return clang_type_to_crawl(ed->getIntegerType().getTypePtr());
+			return clang_type_to_krawl(ed->getIntegerType().getTypePtr());
 		}
 		default:
 			break;
@@ -294,14 +294,14 @@ struct CToCrawlASTConsumer : ASTConsumer {
 				out += " ";
 			}
 			*/
-			out += clang_type_to_crawl(arg->getType().getTypePtr());
+			out += clang_type_to_krawl(arg->getType().getTypePtr());
 			if (i != n-1)
 				out += ", ";
 		}
 		if (fd->isVariadic())
 			out += ", ...";
 		out += ")";
-		std::string result = clang_type_to_crawl(fd->getResultType().getTypePtr());
+		std::string result = clang_type_to_krawl(fd->getResultType().getTypePtr());
 		if (result != "void") {
 			out += " ";
 			out += result;
@@ -320,7 +320,7 @@ struct CToCrawlASTConsumer : ASTConsumer {
 		std::string out = "type ";
 		out += name;
 		out += " ";
-		out += clang_type_to_crawl(td->getUnderlyingType().getTypePtr());
+		out += clang_type_to_krawl(td->getUnderlyingType().getTypePtr());
 		printf("%s;\n", out.c_str());
 	}
 
@@ -343,7 +343,7 @@ struct CToCrawlASTConsumer : ASTConsumer {
 			return;
 		}
 
-		*def = struct_body_to_crawl(rd);
+		*def = struct_body_to_krawl(rd);
 	}
 
 	void process_enum_decl(EnumDecl *ed)
@@ -472,9 +472,9 @@ struct ConstantExprExtractor : ASTConsumer {
 };
 
 struct PPIncludeCollector : PPCallbacks {
-	CToCrawlContext *ctx;
+	CToKrawlContext *ctx;
 
-	PPIncludeCollector(CToCrawlContext *ctx): ctx(ctx)
+	PPIncludeCollector(CToKrawlContext *ctx): ctx(ctx)
 	{
 	}
 
@@ -593,8 +593,8 @@ struct PPIncludeCollector : PPCallbacks {
 	}
 };
 
-struct CToCrawl : PluginASTAction {
-	CToCrawlContext context;
+struct CToKrawl : PluginASTAction {
+	CToKrawlContext context;
 
 	bool BeginSourceFileAction(CompilerInstance &CI, llvm::StringRef filename)
 	{
@@ -607,7 +607,7 @@ struct CToCrawl : PluginASTAction {
 	{
 		context.ctx = &CI.getASTContext();
 		context.srcm = &CI.getSourceManager();
-		return new CToCrawlASTConsumer(&context);
+		return new CToKrawlASTConsumer(&context);
 	}
 
 	bool ParseArgs(const CompilerInstance &CI,
@@ -618,11 +618,11 @@ struct CToCrawl : PluginASTAction {
 
 	void PrintHelp(llvm::raw_ostream &out)
 	{
-		out << "Help for CToCrawl goes here\n";
+		out << "Help for CToKrawl goes here\n";
 	}
 };
 
 } // anonymous namespace
 
-static FrontendPluginRegistry::Add<CToCrawl>
-X("c-to-crawl", "convert C declarations to Crawl");
+static FrontendPluginRegistry::Add<CToKrawl>
+X("c-to-krawl", "convert C declarations to Krawl");

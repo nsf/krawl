@@ -1,7 +1,7 @@
 Type system
 ===========
 
-Crawl's type system mostly follows C's type system, but there are some differences.
+Krawl's type system mostly follows C's type system, but there are some differences.
 
 Types
 -----
@@ -47,7 +47,7 @@ Defining new types
 A new type can be defined using type declaration. It has this form: "`type
 <NAME> <TYPE>;`". Few examples:
 
-[source,crawl]
+[source,krawl]
 ----------------------------------------------------------------------------
 type Size uint
 type Person struct {
@@ -61,7 +61,7 @@ type Vector3 [3]float
 
 You can also define multiple types at once, using this syntax:
 
-[source,crawl]
+[source,krawl]
 ----------------------------------------------------------------------------
 type (
 	Size uint
@@ -95,7 +95,7 @@ applied, here they are:
 
 Some examples:
 
-[source,crawl]
+[source,krawl]
 ----------------------------------------------------------------------------
 var ip *int
 var vp *void = ip
@@ -138,7 +138,7 @@ of a binary expression:
 
 Some examples:
 
-[source,crawl]
+[source,krawl]
 ----------------------------------------------------------------------------
 var a float32
 var b float64
@@ -172,13 +172,13 @@ cases, except these ones:
 
 Integer promotion
 -----------------
-In Crawl integer promotion rule applies silently behind the scenes when doing
+In Krawl integer promotion rule applies silently behind the scenes when doing
 expressions evaluation with smaller than 32 bits operands. All of these
 (`uint8`, `int8`, `uint16`, `int16`) types are promoted to `int32`. It prevents
 some of the overflow errors, but keep in mind that integer promotion doesn't
 affect the resulting type of an expression. Few good examples:
 
-[source,crawl]
+[source,krawl]
 ----------------------------------------------------------------------------
 var a, b uint8 = 250, 200
 var average = (a + b) / 2 // the result is 225, average's type is uint8
