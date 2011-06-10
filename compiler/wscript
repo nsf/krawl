@@ -7,6 +7,6 @@ def build(bld):
 		source   = compiler_src,
 		target   = 'krawl',
 		use      = 'LLVM',
-		lib      = 'mpfr gmp LLVM-2.9',
+		lib      = 'mpfr gmp',
 		rpath    = rpath
 	)

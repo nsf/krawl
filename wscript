@@ -21,7 +21,7 @@ def configure(conf):
 	conf.load('compiler_cxx')
 	conf.check_cfg(
 		path         = 'llvm-config',
-		args         = '--cxxflags --ldflags',
+		args         = '--cxxflags --ldflags --libs',
 		package      = '',
 		uselib_store = 'LLVM',
 	)
