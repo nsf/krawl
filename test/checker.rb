@@ -5,7 +5,7 @@ $problems = []
 
 def run_test(f)
 	# compile
-	%x[krawl -o test #{f}]
+	%x[krawl -o test.o #{f} && clang -o test test.o]
 	out = %x[./test]
 	gold = IO.read("#{f}.expected") rescue "To be determined"
 
@@ -18,7 +18,7 @@ def run_test(f)
 end
 
 if ARGV.one? then
-	%x[krawl -o test #{ARGV[0]}]
+	%x[krawl -o test.o #{ARGV[0]} && clang -o test test.o]
 	puts %x[./test]
 	File.delete("test")
 	exit 0
@@ -43,3 +43,4 @@ if $errors != 0 then
 end
 
 File.delete("test")
+File.delete("test.o")

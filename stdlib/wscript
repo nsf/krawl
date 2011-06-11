@@ -1,0 +1,20 @@
+def build(bld):
+	libs = 'string'.split()
+	for l in libs:
+		src = bld.path.ant_glob('%s/*.krl' % l)
+		bld(
+			features     = 'krawl',
+			huid         = "krawl standard library: %s" % l,
+			source       = src,
+			target       = 'std/%s' % l,
+			package      = l,
+			install_path = '${PREFIX}/include/krawl/std'
+		)
+
+	lib = ['std/%s' % l for l in libs]
+	bld(
+		features='c cstlib',
+		target='stdkrawl',
+		use=lib,
+		install_path = '${PREFIX}/lib/krawl'
+	)
