@@ -30,12 +30,12 @@ struct cur_loop_t {
 };
 
 struct llvm_backend_t {
-	std::string uid;
-	scope_block_t *pkgscope;
-	std::vector<import_sdecl_t*> *used_extern_sdecls;
-	const char *out_name;
-	bool dump;
-	bool time;
+	union {
+		pass3_opts_t opts;
+		struct {
+			PASS3_FIELDS()
+		};
+	};
 
 	Module *module;
 	IRBuilder<> *ir;
@@ -116,6 +116,7 @@ struct llvm_backend_t {
 	void codegen_top_sdecls(std::vector<const char*> *pkgdecls);
 
 	// Interface
+	llvm_backend_t(pass3_opts_t *opts);
 	void pass(std::vector<const char*> *pkgdecls);
 };
 
@@ -196,6 +197,11 @@ static stype_t *compound_lit_stype_i(compound_lit_t *c, size_t i)
 		return sst->fields[i].type;
 	}
 	KRAWL_ASSERT(false, "unreachable");
+}
+
+llvm_backend_t::llvm_backend_t(pass3_opts_t *opts)
+{
+	this->opts = *opts;
 }
 
 Constant *llvm_backend_t::llvmconst(value_t *val, const Type *ty)
@@ -1746,7 +1752,7 @@ void llvm_backend_t::codegen_top_sdecl_pre(sdecl_t *d)
 		codegen_top_var_pre((var_sdecl_t*)d);
 		break;
 	case SDECL_FUNC:
-		codegen_top_func_pre((func_sdecl_t*)d, uid.c_str());
+		codegen_top_func_pre((func_sdecl_t*)d, uid);
 		break;
 	default:
 		break;
@@ -1859,14 +1865,13 @@ void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
 
 }
 
+pass3_t::pass3_t(pass3_opts_t *opts)
+{
+	this->opts = *opts;
+}
+
 void pass3_t::pass(std::vector<const char*> *pkgdecls)
 {
-	llvm_backend_t be;
-	be.uid = uid;
-	be.pkgscope = pkgscope;
-	be.used_extern_sdecls = used_extern_sdecls;
-	be.out_name = out_name;
-	be.dump = dump;
-	be.time = time;
+	llvm_backend_t be(&opts);
 	be.pass(pkgdecls);
 }

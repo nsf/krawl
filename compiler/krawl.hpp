@@ -1660,18 +1660,35 @@ void redeclared_error(ident_expr_t *ident, diagnostic_t *diag);
 // tracker.
 //------------------------------------------------------------------------------
 
-struct pass1_t {
-	// customizable by user
-	scope_block_tracker_t *stracker;
-	sdecl_tracker_t *dtracker;
-	scope_block_t *pkgscope;
-	std::vector<const char*> *names;
-	diagnostic_t *diag;
-	brawl_context_t *brawl;
-	std::vector<const char*> *include_dirs;
-	const char *clang_path;
+// ok, I guess I have to explain this macro a little bit, I'm just tired of
+// writing all this "p1.field1 = field1;" stuff, instead I will use a tricky
+// scheme which will allow me to embed data fields into passes and have an
+// ability to pass them around as named structures
+
+#define PASS1_FIELDS()							\
+	scope_block_tracker_t *stracker;				\
+	sdecl_tracker_t *dtracker;					\
+	scope_block_t *pkgscope;					\
+	std::vector<const char*> *names;				\
+	diagnostic_t *diag;						\
+	brawl_context_t *brawl;						\
+	std::vector<const char*> *include_dirs;				\
+	const char *clang_path;						\
 	const char *clang_plugin_path;
 
+struct pass1_opts_t {
+	PASS1_FIELDS()
+};
+
+struct pass1_t {
+	union {
+		pass1_opts_t opts;
+		struct {
+			PASS1_FIELDS()
+		};
+	};
+
+	pass1_t(pass1_opts_t *opts);
 
 	// run once for each file, AST should contain PROGRAM
 	void pass(node_t *ast);
@@ -1682,14 +1699,25 @@ struct pass1_t {
 // Does the typecheck for all, evaluates constant expressions.
 //------------------------------------------------------------------------------
 
-struct pass2_t {
-	// customizable by user
-	std::string uid;
-	scope_block_tracker_t *stracker;
-	stype_tracker_t *ttracker;
-	sdecl_tracker_t *dtracker;
-	scope_block_t *pkgscope;
+#define PASS2_FIELDS()							\
+	const char *uid;						\
+	scope_block_tracker_t *stracker;				\
+	stype_tracker_t *ttracker;					\
+	sdecl_tracker_t *dtracker;					\
+	scope_block_t *pkgscope;					\
 	diagnostic_t *diag;
+
+struct pass2_opts_t {
+	PASS2_FIELDS()
+};
+
+struct pass2_t {
+	union {
+		pass2_opts_t opts;
+		struct {
+			PASS2_FIELDS()
+		};
+	};
 
 	// When evaluating const declaration, this var points to it.
 	const_sdecl_t *cur_const_decl;
@@ -1720,6 +1748,11 @@ struct pass2_t {
 
 	// Used external declarations
 	std::vector<import_sdecl_t*> used_extern_sdecls;
+
+	pass2_t(pass2_opts_t *opts);
+	void pass(std::vector<const char*> *pkgdecls);
+
+
 
 	void error_args_mismatch(call_expr_t *expr, size_t num);
 
@@ -1786,8 +1819,6 @@ struct pass2_t {
 			   stype_t *result, stype_t *optype, binary_expr_t *expr);
 	value_t eval_unop(value_stype_t *v, stype_t *result, unary_expr_t *expr);
 
-	void pass(std::vector<const char*> *pkgdecls);
-
 	// for each function value_t must be INT, FLOAT and STRING respectively
 	// for const bool I use VALUE_INT (1 == true, 0 == false)
 	value_t eval_int_binop(value_t *v1, value_t *v2, binary_expr_t *expr);
@@ -1812,15 +1843,22 @@ struct pass2_t {
 // Requires an AST that has passed pass 2.
 //------------------------------------------------------------------------------
 
-struct pass3_t {
-	std::string uid;
-	scope_block_t *pkgscope;
-	std::vector<import_sdecl_t*> *used_extern_sdecls;
-	const char *out_name;
-	bool dump;
+#define PASS3_FIELDS()							\
+	const char *uid;						\
+	scope_block_t *pkgscope;					\
+	std::vector<import_sdecl_t*> *used_extern_sdecls;		\
+	const char *out_name;						\
+	bool dump;							\
 	bool time;
 
-	// Interface
+struct pass3_opts_t {
+	PASS3_FIELDS()
+};
+
+struct pass3_t {
+	pass3_opts_t opts;
+
+	pass3_t(pass3_opts_t *opts);
 	void pass(std::vector<const char*> *pkgdecls);
 };
 

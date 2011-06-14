@@ -2079,6 +2079,11 @@ static void gdecls_collector_declare(std::vector<sdecl_t*> *d, void *data)
 	gd->declare_many(d);
 }
 
+pass1_t::pass1_t(pass1_opts_t *opts)
+{
+	this->opts = *opts;
+}
+
 void pass1_t::pass(node_t *ast)
 {
 	gdecls_collector_t visitor;
@@ -2090,6 +2095,11 @@ void pass1_t::pass(node_t *ast)
 //------------------------------------------------------------------------------
 // pass2_t
 //------------------------------------------------------------------------------
+
+pass2_t::pass2_t(pass2_opts_t *opts)
+{
+	this->opts = *opts;
+}
 
 void pass2_t::error_args_mismatch(call_expr_t *expr, size_t num)
 {
@@ -3969,8 +3979,7 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 
 		// Create named type before 'real' type is actually known. I
 		// need that because it is possible to have recursive types.
-		tsd->stype = new_named_stype(ttracker,
-					     uid.c_str(),
+		tsd->stype = new_named_stype(ttracker, uid,
 					     tsd->spec->name->val.c_str(),
 					     0);
 		named_stype_t *nst = tsd->stype->as_named();

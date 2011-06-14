@@ -327,8 +327,8 @@ int main(int argc, char **argv)
 #define START_TIMER(timer) if (opts.time) d.timer.startTimer()
 #define STOP_TIMER(timer) if (opts.time) d.timer.stopTimer()
 
+	//=========================================================== PARSING
 	START_TIMER(t_parse);
-
 	parser_t p(&d.srcinfo, &d.diag);
 	p.set_input(data_name, &data);
 	d.ast = p.parse();
@@ -342,36 +342,36 @@ int main(int argc, char **argv)
 		d.diag.print_to_stderr(&d.srcinfo);
 		return 1;
 	}
-
 	STOP_TIMER(t_parse);
 
+	//=========================================================== PASS 1
 	START_TIMER(t_pass1);
-
-	// PASS 1
-	pass1_t p1;
-	p1.stracker = &d.stracker;
-	p1.dtracker = &d.dtracker;
-	p1.pkgscope = &d.pkgscope;
-	p1.names = &d.declnames;
-	p1.diag = &d.diag;
-	p1.brawl = &d.brawl;
-	p1.include_dirs = &opts.include_dirs;
-	p1.clang_path = opts.clang_path;
-	p1.clang_plugin_path = opts.clang_plugin_path;
+	pass1_opts_t p1opts = {
+		&d.stracker,
+		&d.dtracker,
+		&d.pkgscope,
+		&d.declnames,
+		&d.diag,
+		&d.brawl,
+		&opts.include_dirs,
+		opts.clang_path,
+		opts.clang_plugin_path
+	};
+	pass1_t p1(&p1opts);
 	p1.pass(d.ast);
-
 	STOP_TIMER(t_pass1);
 
+	//=========================================================== PASS 2
 	START_TIMER(t_pass2);
-
-	// PASS 2
-	pass2_t p2;
-	p2.uid = opts.theuid;
-	p2.stracker = &d.stracker;
-	p2.ttracker = &d.ttracker;
-	p2.dtracker = &d.dtracker;
-	p2.pkgscope = &d.pkgscope;
-	p2.diag = &d.diag;
+	pass2_opts_t p2opts = {
+		opts.theuid.c_str(),
+		&d.stracker,
+		&d.ttracker,
+		&d.dtracker,
+		&d.pkgscope,
+		&d.diag,
+	};
+	pass2_t p2(&p2opts);
 	p2.pass(&d.declnames);
 
 	if (!d.diag.empty()) {
@@ -382,21 +382,20 @@ int main(int argc, char **argv)
 	if (opts.is_lib())
 		generate_lib(opts.out_lib.c_str(), &d.pkgscope, &d.declnames,
 			     opts.theuid.c_str(), opts.package.c_str());
-
 	STOP_TIMER(t_pass2);
 
+	//=========================================================== PASS 3
 	START_TIMER(t_pass3);
-
-	// PASS 3
-	pass3_t p3;
-	p3.uid = opts.theuid;
-	p3.pkgscope = &d.pkgscope;
-	p3.used_extern_sdecls = &p2.used_extern_sdecls;
-	p3.out_name = opts.out_name.c_str();
-	p3.dump = opts.dump;
-	p3.time = opts.time;
+	pass3_opts_t p3opts = {
+		opts.theuid.c_str(),
+		&d.pkgscope,
+		&p2.used_extern_sdecls,
+		opts.out_name.c_str(),
+		opts.dump,
+		opts.time,
+	};
+	pass3_t p3(&p3opts);
 	p3.pass(&d.declnames);
-
 	STOP_TIMER(t_pass3);
 
 	return 0;

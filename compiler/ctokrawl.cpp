@@ -263,22 +263,30 @@ std::string update_c_module_hash(const char *header, const char *clang_path,
 	}
 
 	// PASS 1
-	pass1_t p1;
-	p1.stracker = &d.stracker;
-	p1.dtracker = &d.dtracker;
-	p1.pkgscope = &d.pkgscope;
-	p1.names = &d.declnames;
-	p1.diag = &d.diag;
-	p1.brawl = &d.brawl;
+	pass1_opts_t p1opts = {
+		&d.stracker,
+		&d.dtracker,
+		&d.pkgscope,
+		&d.declnames,
+		&d.diag,
+		&d.brawl,
+		0, // include_dirs are not necessary for parsing ctokrawl modules
+		0, // clang path is not required
+		0, // clang_plugin_path is not required
+	};
+	pass1_t p1(&p1opts);
 	p1.pass(d.ast);
 
 	// PASS 2
-	pass2_t p2;
-	p2.stracker = &d.stracker;
-	p2.ttracker = &d.ttracker;
-	p2.dtracker = &d.dtracker;
-	p2.pkgscope = &d.pkgscope;
-	p2.diag = &d.diag;
+	pass2_opts_t p2opts = {
+		"",
+		&d.stracker,
+		&d.ttracker,
+		&d.dtracker,
+		&d.pkgscope,
+		&d.diag,
+	};
+	pass2_t p2(&p2opts);
 	p2.pass(&d.declnames);
 
 	if (!d.diag.empty()) {
