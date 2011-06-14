@@ -1529,20 +1529,44 @@ ident_expr_t *import_sdecl_t::get_ident()
 	return spec->name;
 }
 
-void import_sdecl_t::load(brawl_context_t *ctx)
+static FILE *open_file_on(std::string *path,
+			  std::vector<const char*> *include_dirs)
+{
+	if (path->find_first_of("./") == 0) {
+		return fopen(path->c_str(), "rb");
+	}
+
+	for (size_t i = 0, n = include_dirs->size(); i < n; ++i) {
+		std::string full = include_dirs->at(i);
+		full += '/';
+		full += *path;
+		FILE *f = fopen(full.c_str(), "rb");
+		if (f)
+			return f;
+	}
+
+	std::string full = KRAWL_INSTALL_PREFIX "/include/krawl/" + *path;
+	return fopen(full.c_str(), "rb");
+}
+
+void import_sdecl_t::load(brawl_context_t *ctx,
+			  std::vector<const char*> *include_dirs,
+			  const char *clang_path,
+			  const char *clang_plugin_path)
 {
 	KRAWL_QASSERT(spec->path->val.type == VALUE_STRING);
 	std::string path = spec->path->val.to_string();
 
-	if (path.substr(path.size()-2, 2) == ".h")
-		path = update_c_module_hash(path.c_str());
-	else {
+	FILE *f;
+	if (path.substr(path.size()-2, 2) == ".h") {
+		path = update_c_module_hash(path.c_str(), clang_path,
+					    clang_plugin_path);
+		f = fopen(path.c_str(), "rb");
+	} else {
 		path += ".brl";
-		if (path.find_first_of("./") != 0)
-			path = KRAWL_INSTALL_PREFIX "/include/krawl/" + path;
+		f = open_file_on(&path, include_dirs);
 	}
 
-	FILE *f = fopen(path.c_str(), "rb");
 	if (!f)
 		return;
 
@@ -1989,19 +2013,15 @@ value_stype_t::value_stype_t():
 static void gdecls_collector_declare(std::vector<sdecl_t*> *d, void *data);
 
 struct gdecls_collector_t : ast_visitor_t {
-	scope_block_t *pkgscope;
+	pass1_t *pass;
 	scope_block_t *filescope;
-	sdecl_tracker_t *dtracker;
-	std::vector<const char*> *names;
-	diagnostic_t *diag;
-	brawl_context_t *brawl;
 
 	ast_visitor_t *visit(node_t *node)
 	{
 		if (node->type == node_t::PROGRAM)
 			return this;
 
-		declare_decl(node, dtracker, gdecls_collector_declare, this);
+		declare_decl(node, pass->dtracker, gdecls_collector_declare, this);
 		return 0;
 	}
 
@@ -2009,25 +2029,29 @@ struct gdecls_collector_t : ast_visitor_t {
 	{
 		if (d->type == SDECL_IMPORT) {
 			import_sdecl_t *id = (import_sdecl_t*)d;
-			id->load(brawl);
+			id->load(pass->brawl,
+				 pass->include_dirs,
+				 pass->clang_path,
+				 pass->clang_plugin_path);
+
 			if (id->decls.empty()) {
 				package_error(id);
 				return;
 			}
 
 			if (filescope->has(d->name.c_str())) {
-				redeclared_error(d->get_ident(), diag);
+				redeclared_error(d->get_ident(), pass->diag);
 				return;
 			}
 			filescope->add(d);
 			d->scope = filescope;
 		} else {
-			if (pkgscope->has(d->name.c_str())) {
-				redeclared_error(d->get_ident(), diag);
+			if (pass->pkgscope->has(d->name.c_str())) {
+				redeclared_error(d->get_ident(), pass->diag);
 				return;
 			}
-			pkgscope->add(d);
-			names->push_back(d->name.c_str());
+			pass->pkgscope->add(d);
+			pass->names->push_back(d->name.c_str());
 			d->scope = filescope;
 		}
 	}
@@ -2045,7 +2069,7 @@ struct gdecls_collector_t : ast_visitor_t {
 		m = new_message(MESSAGE_ERROR,
 				range.beg, false, &range, 1,
 				"failed to load package");
-		diag->report(m);
+		pass->diag->report(m);
 	}
 };
 
@@ -2058,12 +2082,8 @@ static void gdecls_collector_declare(std::vector<sdecl_t*> *d, void *data)
 void pass1_t::pass(node_t *ast)
 {
 	gdecls_collector_t visitor;
-	visitor.pkgscope = pkgscope;
+	visitor.pass = this;
 	visitor.filescope = new_scope_block(stracker, pkgscope);
-	visitor.dtracker = dtracker;
-	visitor.names = names;
-	visitor.diag = diag;
-	visitor.brawl = brawl;
 	visitor.traverse(ast);
 }
 

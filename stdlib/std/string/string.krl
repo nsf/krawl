@@ -14,6 +14,11 @@ func New(cap uint) (s *String) {
 	s.len = 0
 }
 
+func Free(s *String) {
+	stdlib.free(s)
+	stdlib.free(s.data)
+}
+
 func FromCStr(cstr *byte) (s *String) {
 	s = stdlib.malloc(sizeof(type String))
 	s.data = string.strdup(cstr)

@@ -103,7 +103,9 @@ static void exec_and_capture_stdout(const char *cmd, std::vector<char> *out)
 	if (!read_FILE(out, cc))
 		DIE("failed to read command's output: %s", cmd);
 
-	pclose(cc);
+	int ok = pclose(cc);
+	if (ok != 0)
+		DIE("clang exited with non-zero status: %d", ok);
 }
 
 static void prepare_module_cache(module_cache_t *mc, const char *header,
@@ -188,7 +190,8 @@ struct mini_all_t {
 	}
 };
 
-std::string update_c_module_hash(const char *header)
+std::string update_c_module_hash(const char *header, const char *clang_path,
+				 const char *clang_plugin_path)
 {
 	// compute paths
 	std::string cachedir = get_xdg_cache_dir() + "/krawl";
@@ -216,9 +219,19 @@ std::string update_c_module_hash(const char *header)
 	}
 
 	// execute clang plugin and grab its output
+	std::string p_clang = "clang";
+	if (clang_path)
+		p_clang = clang_path;
+	std::string p_clang_plugin;
+	cppsprintf(&p_clang_plugin,
+		   KRAWL_INSTALL_PREFIX "/lib/krawl/libctokrawl.%s",
+		   plugin_ext.c_str());
+	if (clang_plugin_path)
+		p_clang_plugin = clang_plugin_path;
+
 	std::string cmd;
-	cppsprintf(&cmd, "clang -cc1 -load %s/lib/krawl/libctokrawl.%s -plugin "
-		   "c-to-krawl -x c %s", KRAWL_INSTALL_PREFIX, plugin_ext.c_str(), headerfile.c_str());
+	cppsprintf(&cmd, "%s -cc1 -load %s -plugin c-to-krawl -x c %s",
+		   p_clang.c_str(), p_clang_plugin.c_str(), headerfile.c_str());
 
 	std::vector<char> output;
 	exec_and_capture_stdout(cmd.c_str(), &output);

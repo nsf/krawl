@@ -28,7 +28,9 @@ def configure(conf):
 	if sys.platform == "darwin":
 		conf.env.append_unique('LINKFLAGS_CLANG_PLUGIN', '-Wl,-undefined,dynamic_lookup')
 
-	conf.load('krawl')
+	conf.env.KRAWL_CONF_OPTS = ['bootstrap']
+	conf.load('krawl', tooldir='wafscripts')
+
 	conf.load('compiler_cxx')
 	conf.load('compiler_c')
 	conf.check_cfg(

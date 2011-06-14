@@ -60,16 +60,19 @@ struct all_t {
 };
 
 static const struct option longopts[] = {
-	{"uid",      required_argument, 0, 'U'},
-	{"hash-uid", required_argument, 0, 'H'},
-	{"ast",      no_argument,       0, 'a'},
-	{"package",  required_argument, 0, 'P'},
-	{"help",     no_argument,       0, 'h'},
-	{"version",  no_argument,       0, 'v'},
-	{"dump",     no_argument,       0, 'D'},
-	{"time",     no_argument,       0, 't'},
-	{"deps",     no_argument,       0, 'm'},
-	{0,          0,                 0, 0}
+	{"uid",          required_argument, 0, 'u'},
+	{"hash-uid",     required_argument, 0, 'U'},
+	{"obj-out",      required_argument, 0, 'o'},
+	{"ast",          no_argument,       0, 'a'},
+	{"package",      required_argument, 0, 'P'},
+	{"help",         no_argument,       0, 'h'},
+	{"version",      no_argument,       0, 'v'},
+	{"dump",         no_argument,       0, 'D'},
+	{"time",         no_argument,       0, 't'},
+	{"deps",         no_argument,       0, 'm'},
+	{"clang",        required_argument, 0, 'c'},
+	{"clang-plugin", required_argument, 0, 'C'},
+	{0,          0,                     0, 0}
 };
 
 struct options_t {
@@ -78,12 +81,15 @@ struct options_t {
 	const char *hash_uid;
 	std::string package;
 	bool print_ast;
-	const char *out_name;
-	std::vector<const char*> libs;
+	std::string out_name;
 	std::vector<const char*> files;
+	std::vector<const char*> include_dirs;
 	bool dump;
 	bool time;
 	bool deps;
+
+	const char *clang_path;
+	const char *clang_plugin_path;
 
 	// calculated on the fly
 	std::string out_lib;
@@ -92,23 +98,27 @@ struct options_t {
 	bool is_lib() const { return uid || hash_uid; }
 };
 
-static void print_help_and_exit()
+static void print_help_and_exit(const char *app)
 {
 	printf(""
-"usage: krawl [options] <files>\n"
+"usage: %s [options] <files>\n"
 "\n"
-"    -h, --help           print this message and exit\n"
-"    -v, --version        print version and exit\n"
-"    --uid=<prefix>       specify unique prefix id for symbols\n"
-"    --hash-uid=<string>  specify unique hash-based prefix id for symbols\n"
-"    -P, --package=<name> specify package name\n"
-"    --ast                print AST and exit (output is in the yaml format)\n"
-"    -o <output>          specify output destination\n"
-"    -l <lib>             specify a library name to pass to a linker\n"
-"    --dump               dump LLVM assembly to stdout during compilation\n"
-"    --time               enable timers\n"
-"    --deps               print source file module dependencies\n"
-);
+"    -h, --help               print this message and exit\n"
+"    -v, --version            print version and exit\n"
+"    -u, --uid=<prefix>       unique prefix id for symbols\n"
+"    -U, --hash-uid=<string>  unique hash-based prefix id for symbols\n"
+"    -P, --package=<name>     package name\n"
+"    -o, --obj-out=<output>   object file output destination\n"
+"    -b, --brl-out=<output>   brawl interface file output destination\n"
+"    -I <path>                search path for modules importer\n"
+"    --ast                    print AST and exit (output is in the yaml format)\n"
+"    --dump                   dump LLVM assembly to stdout during compilation\n"
+"    --time                   enable timers\n"
+"    --deps                   print source file module dependencies\n"
+"\n"
+"    --clang=<path>           clang executable location\n"
+"    --clang-plugin=<path>    clang c-to-krawl plugin location\n"
+, app);
 	exit(0);
 }
 
@@ -139,24 +149,25 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 	opts->uid = 0;
 	opts->hash_uid = 0;
 	opts->print_ast = false;
-	opts->out_name = "krl.out";
 	opts->dump = false;
 	opts->time = false;
 	opts->deps = false;
+	opts->clang_path = 0;
+	opts->clang_plugin_path = 0;
 
 	int c;
-	while ((c = getopt_long(argc, argv, "vho:l:P:", longopts, 0)) != -1) {
+	while ((c = getopt_long(argc, argv, "vho:b:I:P:u:U:", longopts, 0)) != -1) {
 		switch (c) {
 		case 'v':
 			print_version_and_exit();
 			break;
 		case 'h':
-			print_help_and_exit();
+			print_help_and_exit(argv[0]);
 			break;
-		case 'U':
+		case 'u':
 			opts->uid = optarg;
 			break;
-		case 'H':
+		case 'U':
 			opts->hash_uid = optarg;
 			break;
 		case 'P':
@@ -168,8 +179,11 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 		case 'o':
 			opts->out_name = optarg;
 			break;
-		case 'l':
-			opts->libs.push_back(optarg);
+		case 'b':
+			opts->out_lib = optarg;
+			break;
+		case 'I':
+			opts->include_dirs.push_back(optarg);
 			break;
 		case 'D':
 			opts->dump = true;
@@ -180,20 +194,32 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 		case 'm':
 			opts->deps = true;
 			break;
+		case 'c':
+			opts->clang_path = optarg;
+			break;
+		case 'C':
+			opts->clang_plugin_path = optarg;
+			break;
 		default:
 			return false;
 		}
 	}
 
-	// Find library interface file output
-	opts->out_lib = replace_extension(opts->out_name, "brl");
+	for (int i = optind; i < argc; ++i)
+		opts->files.push_back(argv[i]);
 
-	// Find real UID
+	// figure out different names
+	if (opts->out_name.empty() && !opts->files.empty())
+		opts->out_name = replace_extension(opts->files[0], "o");
+	if (opts->out_lib.empty())
+		opts->out_lib = replace_extension(opts->out_name.c_str(), "brl");
+
+	// choose UID
 	opts->theuid = get_module_uid(opts->uid, opts->hash_uid);
 
-	// If package name wasn't provided, try to figure out it
+	// if package name wasn't provided, try to figure out it
 	if (opts->package.empty()) {
-		std::string stem = extract_stem(opts->out_name);
+		std::string stem = extract_stem(opts->out_name.c_str());
 		for (size_t i = 0, n = stem.size(); i < n; ++i) {
 			if (i == 0 && isdigit(stem[i])) {
 				opts->package.append("_");
@@ -209,9 +235,6 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 			opts->package.append(1, stem[i]);
 		}
 	}
-
-	for (int i = optind; i < argc; ++i)
-		opts->files.push_back(argv[i]);
 
 	return true;
 }
@@ -332,6 +355,9 @@ int main(int argc, char **argv)
 	p1.names = &d.declnames;
 	p1.diag = &d.diag;
 	p1.brawl = &d.brawl;
+	p1.include_dirs = &opts.include_dirs;
+	p1.clang_path = opts.clang_path;
+	p1.clang_plugin_path = opts.clang_plugin_path;
 	p1.pass(d.ast);
 
 	STOP_TIMER(t_pass1);
@@ -366,8 +392,7 @@ int main(int argc, char **argv)
 	p3.uid = opts.theuid;
 	p3.pkgscope = &d.pkgscope;
 	p3.used_extern_sdecls = &p2.used_extern_sdecls;
-	p3.out_name = opts.out_name;
-	p3.libs = &opts.libs;
+	p3.out_name = opts.out_name.c_str();
 	p3.dump = opts.dump;
 	p3.time = opts.time;
 	p3.pass(&d.declnames);

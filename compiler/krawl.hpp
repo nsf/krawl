@@ -1490,7 +1490,8 @@ struct import_sdecl_t : sdecl_t {
 	import_sdecl_t(import_spec_t *spec);
 	ident_expr_t *get_ident();
 
-	void load(brawl_context_t *ctx);
+	void load(brawl_context_t *ctx, std::vector<const char*> *include_dirs,
+		  const char *clang_path, const char *clang_plugin_path);
 };
 
 //------------------------------------------------------------------------------
@@ -1667,6 +1668,9 @@ struct pass1_t {
 	std::vector<const char*> *names;
 	diagnostic_t *diag;
 	brawl_context_t *brawl;
+	std::vector<const char*> *include_dirs;
+	const char *clang_path;
+	const char *clang_plugin_path;
 
 
 	// run once for each file, AST should contain PROGRAM
@@ -1813,7 +1817,6 @@ struct pass3_t {
 	scope_block_t *pkgscope;
 	std::vector<import_sdecl_t*> *used_extern_sdecls;
 	const char *out_name;
-	std::vector<const char*> *libs;
 	bool dump;
 	bool time;
 
@@ -1972,4 +1975,5 @@ struct brawl_module_t {
 // Misc
 //------------------------------------------------------------------------------
 
-std::string update_c_module_hash(const char *header);
+std::string update_c_module_hash(const char *header, const char *clang_path,
+				 const char *clang_plugin_path);

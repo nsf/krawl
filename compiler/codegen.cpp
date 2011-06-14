@@ -34,7 +34,6 @@ struct llvm_backend_t {
 	scope_block_t *pkgscope;
 	std::vector<import_sdecl_t*> *used_extern_sdecls;
 	const char *out_name;
-	std::vector<const char*> *libs;
 	bool dump;
 	bool time;
 
@@ -1867,7 +1866,6 @@ void pass3_t::pass(std::vector<const char*> *pkgdecls)
 	be.pkgscope = pkgscope;
 	be.used_extern_sdecls = used_extern_sdecls;
 	be.out_name = out_name;
-	be.libs = libs;
 	be.dump = dump;
 	be.time = time;
 	be.pass(pkgdecls);
