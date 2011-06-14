@@ -1,8 +1,11 @@
 import "std/string"
 
+func HelloWorld() (s *string.String) {
+	s = string.FromCStr("Hello, world")
+}
+
 func SayHello() {
-	s := string.FromCStr("Hello, world")
+	s := HelloWorld()
 	string.Print(s)
 	string.Free(s)
 }
-

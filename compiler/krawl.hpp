@@ -1907,6 +1907,10 @@ bool read_stdin(std::vector<char> *out);
 bool read_file(std::vector<char> *out, const char *filename);
 bool read_FILE(std::vector<char> *out, FILE *f);
 
+//------------------------------------------------------------------------------
+// Brawl serializer
+//------------------------------------------------------------------------------
+
 struct stype_hasher_t {
 	size_t operator()(const stype_t *t) const
 	{
@@ -1923,30 +1927,14 @@ struct stype_comparer_t {
 
 typedef unordered_map<stype_t*, int32_t, stype_hasher_t, stype_comparer_t> stype_map_t;
 
-struct brawl_context_t {
-	unordered_map<std::string, named_stype_t*> named_map;
-	stype_tracker_t *ttracker;
-	sdecl_tracker_t *dtracker;
-};
-
-//------------------------------------------------------------------------------
-// Brawl semantic types
-//------------------------------------------------------------------------------
-
-struct brawl_stypes_t {
-	brawl_context_t *ctx;
-	std::string prefix;
-
+struct brawl_serializer_t {
+	std::string cur_prefix;
+	stype_map_t stype_map;
 	std::vector<stype_t*> stypes;
-	stype_map_t map;
-	int32_t index;
 
-	brawl_stypes_t(brawl_context_t *ctx);
-	void clear();
-
-	int32_t stype_index(stype_t *t);
+	// convert from a pointer to index
 	int32_t builtin_stype_index(stype_t *t);
-	stype_t *index_stype(int32_t idx);
+	int32_t stype_index(stype_t *t);
 
 	void serialize_named(FILE_writer_t *cout, named_stype_t *t);
 	void serialize_pointer(FILE_writer_t *cout, pointer_stype_t *t);
@@ -1954,59 +1942,52 @@ struct brawl_stypes_t {
 	void serialize_struct(FILE_writer_t *cout, struct_stype_t *t);
 	void serialize_func(FILE_writer_t *cout, func_stype_t *t);
 
+	int32_t queue_stype(stype_t *t);
+	void serialize(FILE_writer_t *cout, scope_block_t *pkgscope,
+		       std::vector<const char*> *declnames,
+		       const char *prefix, const char *package);
+};
+
+//------------------------------------------------------------------------------
+// Brawl deserializer
+//------------------------------------------------------------------------------
+
+struct brawl_context_t {
+	unordered_set<std::string> prefixes;
+	unordered_map<std::string, named_stype_t*> named_map;
+	stype_tracker_t *ttracker;
+	sdecl_tracker_t *dtracker;
+};
+
+struct brawl_deserializer_t {
+	brawl_context_t *ctx;
+
+	std::string cur_prefix;
+	std::string prefix;
+	std::string package;
+	std::vector<stype_t*> stypes;
+	std::vector<sdecl_t*> sdecls;
+
+	brawl_deserializer_t(brawl_context_t *ctx);
+
+	// convert from an index to a pointer (used in restore_*_pointers)
+	stype_t *index_stype(int32_t idx);
+
+	// return the address of 'p' in ctx->prefixes (will add if doesn't exist)
+	const char *ctx_prefix(const char *p);
+
 	void deserialize_named(FILE_reader_t *cin);
 	void deserialize_pointer(FILE_reader_t *cin);
 	void deserialize_array(FILE_reader_t *cin);
 	void deserialize_struct(FILE_reader_t *cin);
 	void deserialize_func(FILE_reader_t *cin);
-	void deserialize_types(FILE_reader_t *cin, size_t n);
-	void restore_pointers();
+	void deserialize_stypes(FILE_reader_t *cin, size_t n);
+	void restore_stype_pointers();
 
-	int32_t queue_for_serialization(stype_t *t);
-	void save(FILE_writer_t *cout);
-	void load(FILE_reader_t *cin);
-};
+	void deserialize_sdecls(FILE_reader_t *cin, size_t n);
+	void restore_sdecl_pointers();
 
-//------------------------------------------------------------------------------
-// Brawl semantic decls
-//------------------------------------------------------------------------------
-
-struct brawl_sdecls_t {
-	brawl_context_t *ctx;
-	brawl_stypes_t btypes;
-
-	std::vector<sdecl_t*> sdecls;
-
-	brawl_sdecls_t(brawl_context_t *ctx);
-	void clear();
-
-	void deserialize_decls(FILE_reader_t *cin, size_t n);
-	void restore_pointers();
-
-	void queue_for_serialization(sdecl_t *d);
-	void save(FILE_writer_t *cout);
-	void load(FILE_reader_t *cin);
-};
-
-//------------------------------------------------------------------------------
-// Brawl module
-//------------------------------------------------------------------------------
-
-struct brawl_module_t {
-	brawl_sdecls_t bdecls;
-
-	std::string prefix;
-	std::string package;
-	unordered_map<std::string, sdecl_t*> decls;
-
-	brawl_module_t(brawl_context_t *ctx);
-	void clear();
-
-	void queue_for_serialization(scope_block_t *pkgscope,
-				     std::vector<const char*> *declnames,
-				     const char *prefix, const char *package);
-	void save(FILE_writer_t *cout);
-	void load(FILE_reader_t *cin);
+	void deserialize(FILE_reader_t *cin);
 };
 
 //------------------------------------------------------------------------------

@@ -244,9 +244,6 @@ static void generate_lib(const char *filename,
 			 std::vector<const char*> *declnames,
 			 const char *prefix, const char *package)
 {
-	brawl_module_t module(0);
-	module.queue_for_serialization(pkgscope, declnames, prefix, package);
-
 	FILE *f = fopen(filename, "wb");
 	if (!f) {
 		fprintf(stderr, "Failed opening file for writing: %s\n", filename);
@@ -254,7 +251,8 @@ static void generate_lib(const char *filename,
 	}
 	{
 		FILE_writer_t cout(f);
-		module.save(&cout);
+		brawl_serializer_t s;
+		s.serialize(&cout, pkgscope, declnames, prefix, package);
 	}
 	fclose(f);
 }

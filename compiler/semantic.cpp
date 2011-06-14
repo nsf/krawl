@@ -1570,15 +1570,16 @@ void import_sdecl_t::load(brawl_context_t *ctx,
 	if (!f)
 		return;
 
-	brawl_module_t bmodule(ctx);
+	brawl_deserializer_t ds(ctx);
 	FILE_reader_t cin(f);
-	bmodule.load(&cin);
+	ds.deserialize(&cin);
 	fclose(f);
 
-	prefix = bmodule.prefix;
+	prefix = ds.prefix;
 	if (name.empty())
-		name = bmodule.package;
-	decls.swap(bmodule.decls);
+		name = ds.package;
+	for (size_t i = 0, n = ds.sdecls.size(); i < n; ++i)
+		decls[ds.sdecls[i]->name] = ds.sdecls[i];
 }
 
 //------------------------------------------------------------------------------
