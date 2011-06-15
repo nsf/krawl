@@ -250,9 +250,9 @@ int32_t brawl_serializer_t::queue_stype(stype_t *t)
 	return curidx;
 }
 
-void brawl_serializer_t::serialize(FILE_writer_t *cout, scope_block_t *pkgscope,
-				  std::vector<const char*> *declnames,
-				  const char *prefix, const char *package)
+void brawl_serializer_t::serialize(FILE_writer_t *cout,
+				   std::vector<sdecl_t*> *pkgdecls,
+				   const char *prefix, const char *package)
 {
 	// set active prefix
 	this->cur_prefix = prefix;
@@ -262,9 +262,9 @@ void brawl_serializer_t::serialize(FILE_writer_t *cout, scope_block_t *pkgscope,
 	cout->write_string(package);
 
 	// sdecls
-	cout->write_uint32(declnames->size());
-	for (size_t i = 0, n = declnames->size(); i < n; ++i) {
-		sdecl_t *d = pkgscope->sdecls[declnames->at(i)];
+	cout->write_uint32(pkgdecls->size());
+	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
+		sdecl_t *d = pkgdecls->at(i);
 
 		// skip imports
 		if (d->type == SDECL_IMPORT)

@@ -122,8 +122,7 @@ static void prepare_module_cache(module_cache_t *mc, const char *header,
 }
 
 static void generate_lib(const char *filename,
-			 scope_block_t *pkgscope,
-			 std::vector<const char*> *declnames,
+			 std::vector<sdecl_t*> *pkgdecls,
 			 const char *prefix, const char *package)
 {
 	FILE *f = fopen(filename, "wb");
@@ -134,7 +133,7 @@ static void generate_lib(const char *filename,
 	{
 		FILE_writer_t cout(f);
 		brawl_serializer_t s;
-		s.serialize(&cout, pkgscope, declnames, prefix, package);
+		s.serialize(&cout, pkgdecls, prefix, package);
 	}
 	fclose(f);
 }
@@ -165,7 +164,7 @@ struct mini_all_t {
 	source_group_t srcinfo;
 	scope_block_t globalscope;
 	scope_block_t pkgscope;
-	std::vector<const char*> declnames;
+	std::vector<sdecl_t*> pkgdecls;
 	diagnostic_t diag;
 	node_t *ast;
 
@@ -265,7 +264,7 @@ std::string update_c_module_hash(const char *header, const char *clang_path,
 		&d.stracker,
 		&d.dtracker,
 		&d.pkgscope,
-		&d.declnames,
+		&d.pkgdecls,
 		&d.diag,
 		&d.brawl,
 		0, // include_dirs are not necessary for parsing ctokrawl modules
@@ -285,7 +284,7 @@ std::string update_c_module_hash(const char *header, const char *clang_path,
 		&d.diag,
 	};
 	pass2_t p2(&p2opts);
-	p2.pass(&d.declnames);
+	p2.pass(&d.pkgdecls);
 
 	if (!d.diag.empty()) {
 		d.diag.print_to_stderr(&d.srcinfo);
@@ -295,7 +294,7 @@ std::string update_c_module_hash(const char *header, const char *clang_path,
 	// write library
 	bool existed_unused;
 	llvm::sys::fs::create_directories(cachedir, existed_unused);
-	generate_lib(brlfile.c_str(), &d.pkgscope, &d.declnames, "",
+	generate_lib(brlfile.c_str(), &d.pkgdecls, "",
 		     llvm::sys::path::stem(header).str().c_str());
 
 	// write cache entry

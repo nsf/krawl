@@ -113,11 +113,11 @@ struct llvm_backend_t {
 	void codegen_top_var(var_sdecl_t *vsd);
 	void codegen_top_sdecl_pre(sdecl_t *d);
 	void codegen_top_sdecl(sdecl_t *d);
-	void codegen_top_sdecls(std::vector<const char*> *pkgdecls);
+	void codegen_top_sdecls(std::vector<sdecl_t*> *pkgdecls);
 
 	// Interface
 	llvm_backend_t(pass3_opts_t *opts);
-	void pass(std::vector<const char*> *pkgdecls);
+	void pass(std::vector<sdecl_t*> *pkgdecls);
 };
 
 static bool is_bb_terminated(BasicBlock *bb)
@@ -1773,17 +1773,17 @@ void llvm_backend_t::codegen_top_sdecl(sdecl_t *d)
 	}
 }
 
-void llvm_backend_t::codegen_top_sdecls(std::vector<const char*> *pkgdecls)
+void llvm_backend_t::codegen_top_sdecls(std::vector<sdecl_t*> *pkgdecls)
 {
 	for (size_t i = 0, n = used_extern_sdecls->size(); i < n; ++i)
 		codegen_top_extern_sdecls(used_extern_sdecls->at(i));
 
 	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
-		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
+		sdecl_t *sd = pkgdecls->at(i);
 		codegen_top_sdecl_pre(sd);
 	}
 	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
-		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
+		sdecl_t *sd = pkgdecls->at(i);
 		codegen_top_sdecl(sd);
 	}
 }
@@ -1813,7 +1813,7 @@ void llvm_backend_t::finalize_init_func()
 	ir_init_alloca_pt->eraseFromParent();
 }
 
-void llvm_backend_t::pass(std::vector<const char*> *pkgdecls)
+void llvm_backend_t::pass(std::vector<sdecl_t*> *pkgdecls)
 {
 	module = new Module("Main", LLGC);
 	ir = 0;
@@ -1870,7 +1870,7 @@ pass3_t::pass3_t(pass3_opts_t *opts)
 	this->opts = *opts;
 }
 
-void pass3_t::pass(std::vector<const char*> *pkgdecls)
+void pass3_t::pass(std::vector<sdecl_t*> *pkgdecls)
 {
 	llvm_backend_t be(&opts);
 	be.pass(pkgdecls);

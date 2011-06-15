@@ -19,7 +19,7 @@ struct all_t {
 
 	// package scope, a parent of all file scopes
 	scope_block_t pkgscope;
-	std::vector<const char*> declnames;
+	std::vector<sdecl_t*> pkgdecls;
 
 	// diagnostic stack and ASTs
 	diagnostic_t diag;
@@ -240,8 +240,7 @@ static bool parse_options(options_t *opts, int argc, char **argv)
 }
 
 static void generate_lib(const char *filename,
-			 scope_block_t *pkgscope,
-			 std::vector<const char*> *declnames,
+			 std::vector<sdecl_t*> *pkgdecls,
 			 const char *prefix, const char *package)
 {
 	FILE *f = fopen(filename, "wb");
@@ -252,7 +251,7 @@ static void generate_lib(const char *filename,
 	{
 		FILE_writer_t cout(f);
 		brawl_serializer_t s;
-		s.serialize(&cout, pkgscope, declnames, prefix, package);
+		s.serialize(&cout, pkgdecls, prefix, package);
 	}
 	fclose(f);
 }
@@ -348,7 +347,7 @@ int main(int argc, char **argv)
 		&d.stracker,
 		&d.dtracker,
 		&d.pkgscope,
-		&d.declnames,
+		&d.pkgdecls,
 		&d.diag,
 		&d.brawl,
 		&opts.include_dirs,
@@ -370,7 +369,7 @@ int main(int argc, char **argv)
 		&d.diag,
 	};
 	pass2_t p2(&p2opts);
-	p2.pass(&d.declnames);
+	p2.pass(&d.pkgdecls);
 
 	if (!d.diag.empty()) {
 		d.diag.print_to_stderr(&d.srcinfo);
@@ -378,7 +377,7 @@ int main(int argc, char **argv)
 	}
 
 	if (opts.is_lib())
-		generate_lib(opts.out_lib.c_str(), &d.pkgscope, &d.declnames,
+		generate_lib(opts.out_lib.c_str(), &d.pkgdecls,
 			     opts.theuid.c_str(), opts.package.c_str());
 	STOP_TIMER(t_pass2);
 
@@ -393,7 +392,7 @@ int main(int argc, char **argv)
 		opts.time,
 	};
 	pass3_t p3(&p3opts);
-	p3.pass(&d.declnames);
+	p3.pass(&d.pkgdecls);
 	STOP_TIMER(t_pass3);
 
 	return 0;

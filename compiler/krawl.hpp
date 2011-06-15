@@ -1669,7 +1669,7 @@ void redeclared_error(ident_expr_t *ident, diagnostic_t *diag);
 	scope_block_tracker_t *stracker;				\
 	sdecl_tracker_t *dtracker;					\
 	scope_block_t *pkgscope;					\
-	std::vector<const char*> *names;				\
+	std::vector<sdecl_t*> *pkgdecls;				\
 	diagnostic_t *diag;						\
 	brawl_context_t *brawl;						\
 	std::vector<const char*> *include_dirs;				\
@@ -1750,7 +1750,7 @@ struct pass2_t {
 	std::vector<import_sdecl_t*> used_extern_sdecls;
 
 	pass2_t(pass2_opts_t *opts);
-	void pass(std::vector<const char*> *pkgdecls);
+	void pass(std::vector<sdecl_t*> *pkgdecls);
 
 
 
@@ -1859,7 +1859,7 @@ struct pass3_t {
 	pass3_opts_t opts;
 
 	pass3_t(pass3_opts_t *opts);
-	void pass(std::vector<const char*> *pkgdecls);
+	void pass(std::vector<sdecl_t*> *pkgdecls);
 };
 
 //------------------------------------------------------------------------------
@@ -1943,8 +1943,7 @@ struct brawl_serializer_t {
 	void serialize_func(FILE_writer_t *cout, func_stype_t *t);
 
 	int32_t queue_stype(stype_t *t);
-	void serialize(FILE_writer_t *cout, scope_block_t *pkgscope,
-		       std::vector<const char*> *declnames,
+	void serialize(FILE_writer_t *cout, std::vector<sdecl_t*> *pkgdecls,
 		       const char *prefix, const char *package);
 };
 

@@ -2052,7 +2052,7 @@ struct gdecls_collector_t : ast_visitor_t {
 				return;
 			}
 			pass->pkgscope->add(d);
-			pass->names->push_back(d->name.c_str());
+			pass->pkgdecls->push_back(d);
 			d->scope = filescope;
 		}
 	}
@@ -3132,7 +3132,7 @@ value_stype_t pass2_t::typecheck_expr(node_t *expr)
 	return value_stype_t();
 }
 
-void pass2_t::pass(std::vector<const char*> *pkgdecls)
+void pass2_t::pass(std::vector<sdecl_t*> *pkgdecls)
 {
 	cur_const_decl = 0;
 	cur_func_decl = 0;
@@ -3144,7 +3144,7 @@ void pass2_t::pass(std::vector<const char*> *pkgdecls)
 
 	// walk types first and check for type loops
 	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
-		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
+		sdecl_t *sd = pkgdecls->at(i);
 		if (sd->type != SDECL_TYPE)
 			continue;
 
@@ -3162,7 +3162,7 @@ void pass2_t::pass(std::vector<const char*> *pkgdecls)
 	}
 
 	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {
-		sdecl_t *sd = pkgscope->sdecls[pkgdecls->at(i)];
+		sdecl_t *sd = pkgdecls->at(i);
 		if (sd->type == SDECL_TYPE)
 			continue;
 		resolve_sdecl(sd);
