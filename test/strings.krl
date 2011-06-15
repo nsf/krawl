@@ -8,7 +8,7 @@ type String struct {
 }
 
 func StringNew(cap uint) (s *String) {
-	s = stdlib.malloc(sizeof(type String))
+	s = stdlib.malloc(sizeof(String))
 	s.len = 0
 	s.cap = cap
 	s.data = stdlib.malloc(cap + 1)
@@ -25,7 +25,7 @@ func StringFromCStr(cstr *byte) (s *String) {
 }
 
 func StringFromCStrLen(cstr *byte, len uint) (s *String) {
-	s = stdlib.malloc(sizeof(type String))
+	s = stdlib.malloc(sizeof(String))
 	s.len = len
 	s.cap = len
 	s.data = stdlib.malloc(s.cap + 1)
@@ -41,7 +41,7 @@ func StringPrintf(fmt *byte, ...) (s *String) {
 	len := stdio.vsnprintf(nil, 0, fmt, va).(uint)
 	va_end(&va)
 
-	s = stdlib.malloc(sizeof(type String))
+	s = stdlib.malloc(sizeof(String))
 	s.len = len
 	s.cap = len
 	s.data = stdlib.malloc(s.cap + 1)

@@ -243,9 +243,14 @@ token_t::~token_t()
 node_t::node_t(type_t t): type(t) {}
 node_t::~node_t() {}
 
+bool node_t::is_type()
+{
+	return type >= ARRAY_TYPE && type <= FUNC_TYPE;
+}
+
 bool node_t::is_expr()
 {
-	return type >= COMPOUND_LIT && type <= TYPE_EXPR;
+	return type >= COMPOUND_LIT && type <= TYPE_CAST_EXPR;
 }
 
 bool node_t::is_terminator()
@@ -1180,36 +1185,6 @@ source_loc_range_t type_cast_expr_t::source_loc_range()
 }
 
 //------------------------------------------------------------------------------
-// type_expr_t
-//------------------------------------------------------------------------------
-
-type_expr_t::type_expr_t(node_t *etype, token_t *tok):
-	node_t(node_t::TYPE_EXPR), etype(etype), pos(tok->pos)
-{
-	delete tok;
-}
-
-type_expr_t::~type_expr_t()
-{
-	delete etype;
-}
-
-std::string type_expr_t::to_string(int indent)
-{
-	std::string out;
-	out += istr(indent) + "node: TYPE_EXPR\n";
-	out += istr(indent) + "type:\n" + etype->to_string(indent+1);
-	return out;
-}
-
-source_loc_range_t type_expr_t::source_loc_range()
-{
-	source_loc_range_t end = etype->source_loc_range();
-	source_loc_range_t slk = {pos, end.end};
-	return slk;
-}
-
-//------------------------------------------------------------------------------
 // array_type_t
 //------------------------------------------------------------------------------
 
@@ -1939,12 +1914,6 @@ do {								\
 		NODE(type_cast_expr_t*);
 		TFIELD(ctype);
 		TFIELD(expr);
-		break;
-	}
-	case node_t::TYPE_EXPR:
-	{
-		NODE(type_expr_t*);
-		TFIELD(etype);
 		break;
 	}
 	case node_t::STRUCT_TYPE:

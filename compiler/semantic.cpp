@@ -1806,7 +1806,6 @@ scope_block_t *new_scope_block(scope_block_tracker_t *t, scope_block_t *parent)
 
 bool addressable(node_t *n)
 {
-	// TODO: incomplete
 	switch (n->type) {
 	case node_t::BINARY_EXPR:
 		break;
@@ -1996,6 +1995,56 @@ void redeclared_error(ident_expr_t *expr, diagnostic_t *diag)
 			"'%s' redeclared in this block",
 			expr->val.c_str());
 	diag->report(m);
+}
+
+bool is_type(node_t *n, scope_block_t *scope)
+{
+	if (n->is_type())
+		return true;
+
+	switch (n->type) {
+	case node_t::IDENT_EXPR:
+	{
+		ident_expr_t *e = (ident_expr_t*)n;
+		sdecl_t *d = e->sdecl;
+		if (!d)
+			d = scope->lookup(e->val.c_str());
+		if (!d)
+			return false;
+		return d->type == SDECL_TYPE;
+	}
+	case node_t::UNARY_EXPR:
+	{
+		unary_expr_t *e = (unary_expr_t*)n;
+		if (e->tok != TOK_TIMES)
+			return false;
+
+		return is_type(e->expr, scope);
+	}
+	case node_t::SELECTOR_EXPR:
+	{
+		selector_expr_t *e = (selector_expr_t*)n;
+		ident_expr_t *ie = is_ident_expr(e->expr);
+		if (!ie)
+			return false;
+
+		sdecl_t *d = scope->lookup(ie->val.c_str());
+		if (!d || d->type != SDECL_IMPORT)
+			return false;
+
+		import_sdecl_t *id = (import_sdecl_t*)d;
+		unordered_map<std::string, sdecl_t*>::iterator it;
+		it = id->decls.find(e->sel->val);
+		if (it == id->decls.end())
+			return false;
+
+		d = it->second;
+		return d->type == SDECL_TYPE;
+	}
+	default:
+		break;
+	}
+	return false;
 }
 
 //------------------------------------------------------------------------------
@@ -2240,6 +2289,15 @@ stype_t *pass2_t::typegen(node_t *expr)
 		e->sdecl = d;
 		resolve_sdecl(d);
 		return d->stype;
+	}
+	case node_t::UNARY_EXPR:
+	{
+		unary_expr_t *e = (unary_expr_t*)expr;
+		stype_t *points_to = typegen(e->expr);
+
+		if (!points_to)
+			return 0;
+		return new_pointer_stype(ttracker, points_to);
 	}
 	case node_t::POINTER_TYPE:
 	{
@@ -2696,17 +2754,6 @@ value_stype_t pass2_t::typecheck_type_cast_expr(type_cast_expr_t *expr)
 	return out;
 }
 
-value_stype_t pass2_t::typecheck_type_expr(type_expr_t *expr)
-{
-	value_stype_t out;
-	out.stype = typegen(expr->etype);
-
-	// doing it here manually, because typecheck_expr denies type
-	// expressions
-	expr->vst = out;
-	return out;
-}
-
 bool pass2_t::typecheck_call_expr_args(call_expr_t *expr,
 				       stype_t **ftargs, size_t ftargs_n,
 				       bool varargs)
@@ -2758,12 +2805,13 @@ bool pass2_t::typecheck_call_expr_args(call_expr_t *expr,
 			value_stype_t cargvt;
 			if (i < ftargs_n &&
 			    ftargs[i] == builtin_stypes[BUILTIN_VOID] &&
-			    expr->args[i]->type == node_t::TYPE_EXPR)
+			    is_type(expr->args[i], cur_scope))
 			{
-				type_expr_t *te = (type_expr_t*)expr->args[i];
-				cargvt = typecheck_type_expr(te);
-			} else
+				cargvt.stype = typegen(expr->args[i]);
+				expr->args[i]->vst = cargvt;
+			} else {
 				cargvt = typecheck_expr(expr->args[i]);
+			}
 			if (!cargvt.stype) {
 				expr->typeerror = true;
 				return false;
@@ -3109,17 +3157,6 @@ value_stype_t pass2_t::typecheck_expr(node_t *expr)
 		e->vst = typecheck_type_cast_expr(e);
 		return e->vst;
 	}
-	case node_t::TYPE_EXPR:
-	{
-		type_expr_t *e = (type_expr_t*)expr;
-		source_loc_range_t range = e->etype->source_loc_range();
-		message_t *m;
-		m = new_message(MESSAGE_ERROR,
-				e->pos, true, &range, 1,
-				"type expression outside of a built-in function");
-		diag->report(m);
-		return value_stype_t();
-	}
 	case node_t::COMPOUND_LIT:
 	{
 		compound_lit_t *e = (compound_lit_t*)expr;
@@ -3337,6 +3374,10 @@ void pass2_t::typecheck_return_stmt(return_stmt_t *stmt)
 	stype_vector_t returns;
 	size_t returns_n = 0;
 
+	for (size_t i = 0, n = stmt->returns.size(); i < n; ++i)
+		KRAWL_ASSERT(!is_type(stmt->returns[i], cur_scope),
+			     "TODO: add proper error message here");
+
 	// special case, function expects many return values and return
 	// statement contains only one function call
 	if (cur_func_decl->n_return_values() > 1 && stmt->returns.size() == 1 &&
@@ -3487,6 +3528,10 @@ void pass2_t::typecheck_compound_assign_stmt(assign_stmt_t *stmt)
 
 void pass2_t::typecheck_assign_stmt(assign_stmt_t *stmt)
 {
+	for (size_t i = 0, n = stmt->rhs.size(); i < n; ++i)
+		KRAWL_ASSERT(!is_type(stmt->rhs[i], cur_scope),
+			     "TODO: add proper error message here");
+
 	if (stmt->tok != TOK_DECLARIZE && stmt->tok != TOK_ASSIGN) {
 		// *= += -= /=, etc.
 		typecheck_compound_assign_stmt(stmt);
@@ -3910,6 +3955,9 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 
 		// typecheck init expression if any
 		if (vsd->init) {
+			KRAWL_ASSERT(!is_type(vsd->init, cur_scope),
+				     "TODO: add proper error message here");
+
 			vsd->stype = typecheck_var_init(vsd->init, vsd->index);
 			if (!vsd->stype)
 				vsd->typeerror = true;
@@ -4339,8 +4387,6 @@ void pass2_t::realize_expr_type(node_t *expr, stype_t *ctx)
 	case node_t::BASIC_LIT_EXPR:
 		break; // ignore this one
 	case node_t::IDENT_EXPR:
-		break; // ignore this one
-	case node_t::TYPE_EXPR:
 		break; // ignore this one
 	default:
 		KRAWL_QASSERT(!"bad expression type");

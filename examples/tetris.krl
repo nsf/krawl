@@ -139,7 +139,7 @@ type TetrisFigure struct {
 }
 
 func NewTetrisFigure(spec *byte, color TetrisBlockColor) (f *TetrisFigure) {
-	f = stdlib.malloc(sizeof(type TetrisFigure))
+	f = stdlib.malloc(sizeof(TetrisFigure))
 	string.memset(f, 0, sizeof(*f))
 	f.x = 3
 	f.cx = -1
@@ -306,10 +306,10 @@ type TetrisField struct	{
 }
 
 func NewTetrisField(w, h int) (f *TetrisField) {
-	f = stdlib.malloc(sizeof(type TetrisField))
+	f = stdlib.malloc(sizeof(TetrisField))
 	f.width = w
 	f.height = h
-	f.blocks = stdlib.malloc(sizeof(type TetrisBlock) * w * h)
+	f.blocks = stdlib.malloc(sizeof(TetrisBlock) * w * h)
 	TetrisFieldClear(f)
 }
 
@@ -442,7 +442,7 @@ type GameSession struct {
 }
 
 func NewGameSession() (gs *GameSession) {
-	gs = stdlib.malloc(sizeof(type GameSession))
+	gs = stdlib.malloc(sizeof(GameSession))
 	gs.field = NewTetrisField(10, 25)
 	gs.figure = NewRandomTetrisFigure()
 	gs.next = NewRandomTetrisFigureNot(gs.figure)

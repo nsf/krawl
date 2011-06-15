@@ -17,7 +17,7 @@ func test_vaarg(msg *byte, ...) {
 	var vl va_list
 	va_start(&vl)
 	for {
-		i := va_arg(&vl, type int)
+		i := va_arg(&vl, int)
 		if i == N_END {
 			break
 		}

@@ -508,6 +508,82 @@ expr(E) ::= expr(L) OROR(T)   expr(R). { E = new binary_expr_t(L, R, T); }
 
 
 //------------------------------------------------------------------------------
+// Combined type and expression
+//
+// Here we use a big copy & paste of expr, uexpr and pexpr.
+//------------------------------------------------------------------------------
+
+%type ty_pexpr { node_t* }
+ty_pexpr(T) ::= LSB(L) expr(LEN) RSB(R) type(EL). { T = new array_type_t(LEN, EL, L, R); }
+ty_pexpr(T) ::= LSB(L) RSB(R) type(EL).           { T = new array_type_t(0, EL, L, R); }
+ty_pexpr(A) ::= basic_lit(E).                     { A = E; }
+ty_pexpr(A) ::= ident(I).                         { A = I; }
+ty_pexpr(A) ::= LPAREN(L) expr(E) RPAREN(R).      { A = new paren_expr_t(E, L, R); }
+ty_pexpr(A) ::= pexpr(P) LSB(L) expr(I) RSB(R).   { A = new index_expr_t(P, I, L, R); }
+
+// selector expr
+ty_pexpr(A) ::= pexpr(P) DOT IDENT(I). {
+	A = new selector_expr_t(P, new ident_expr_t(I));
+}
+
+// type cast expr
+ty_pexpr(A) ::= pexpr(P) DOT(D) LPAREN(L) type(T) RPAREN(R). {
+	A = new type_cast_expr_t(P, T, D, L, R);
+}
+
+// call expr
+ty_pexpr(A) ::= pexpr(P) LPAREN(L) RPAREN(R).     { A = new call_expr_t(P, 0, L, R); }
+
+// call expr with non-empty expr list
+ty_pexpr(A) ::= pexpr(P) LPAREN(L) iexpr_list(EL) RPAREN(R). {
+	A = new call_expr_t(P, EL, L, R);
+}
+
+ty_pexpr(T) ::= STRUCT(TOK) LCURLY(L) ofield_semi_list_and_osemi(FL) RCURLY(R). {
+	T = new struct_type_t(FL, TOK, L, R);
+}
+ty_pexpr(T) ::= UNION(TOK) LCURLY(L) ofield_semi_list_and_osemi(FL) RCURLY(R). {
+	T = new struct_type_t(FL, TOK, L, R);
+}
+ty_pexpr(T) ::= FUNC(TOK) LPAREN oargs_comma_list(A) RPAREN func_results(R). {
+	T = new func_type_t(A, R, TOK);
+}
+
+%type ty_uexpr { node_t* }
+ty_uexpr(A) ::= ty_pexpr(B).              { A = B; }
+ty_uexpr(A) ::= PLUS(T) uexpr(E).         { A = new unary_expr_t(E, T); }
+ty_uexpr(A) ::= MINUS(T) uexpr(E).        { A = new unary_expr_t(E, T); }
+ty_uexpr(A) ::= NOT(T) uexpr(E).          { A = new unary_expr_t(E, T); }
+ty_uexpr(A) ::= AND(T) uexpr(E).          { A = new unary_expr_t(E, T); }
+ty_uexpr(A) ::= TIMES(T) ty_uexpr(E).     { A = new unary_expr_t(E, T); }
+ty_uexpr(A) ::= XOR(T) uexpr(E).          { A = new unary_expr_t(E, T); }
+
+%type ty_expr { node_t* }
+ty_expr(E) ::= ty_uexpr(U).               { E = U; }
+ty_expr(E) ::= expr(L) DIVIDE(T) expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) TIMES(T)  expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) MOD(T)    expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) SHIFTL(T) expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) SHIFTR(T) expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) AND(T)    expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) ANDNOT(T) expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) PLUS(T)   expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) MINUS(T)  expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) OR(T)     expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) XOR(T)    expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) EQ(T)     expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) NEQ(T)    expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) LT(T)     expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) LE(T)     expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) GT(T)     expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) GE(T)     expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) ANDAND(T) expr(R). { E = new binary_expr_t(L, R, T); }
+ty_expr(E) ::= expr(L) OROR(T)   expr(R). { E = new binary_expr_t(L, R, T); }
+
+
+
+
+//------------------------------------------------------------------------------
 // Compound literal
 //
 // {iexpr, iexpr, iexpr}
@@ -526,27 +602,14 @@ compound_lit(CL) ::= LCURLY(L) iexpr_list(CEL) ocomma RCURLY DOT LPAREN type(T) 
 
 
 //------------------------------------------------------------------------------
-// Type expression
-//
-// type [10]*int
-//------------------------------------------------------------------------------
-
-%type type_expr { node_t* }
-type_expr(TE) ::= TYPE(TOK) type(T). { TE = new type_expr_t(T, TOK); }
-
-
-
-
-//------------------------------------------------------------------------------
 // Compound/expression list (comma separated)
 //
 // expr, compound, expr
 //------------------------------------------------------------------------------
 
 %type iexpr { node_t* }
-iexpr(CE) ::= expr(E).          { CE = E; }
+iexpr(CE) ::= ty_expr(E).       { CE = E; }
 iexpr(CE) ::= compound_lit(CL). { CE = CL; }
-iexpr(CE) ::= type_expr(TE).    { CE = TE; }
 
 %type iexpr_list { node_vector_t* }
 iexpr_list(L) ::= iexpr(E).                      { L = new node_vector_t(1, E); }

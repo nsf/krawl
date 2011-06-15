@@ -314,7 +314,6 @@ struct node_t {
 		CALL_EXPR,
 		PAREN_EXPR,
 		TYPE_CAST_EXPR,
-		TYPE_EXPR,
 
 		EXPR_STMT,
 		ASSIGN_STMT,
@@ -348,6 +347,7 @@ struct node_t {
 	virtual std::string to_string(int indent) = 0;
 	virtual source_loc_range_t source_loc_range() = 0;
 
+	bool is_type();
 	bool is_expr();
 	bool is_terminator();
 };
@@ -1643,6 +1643,9 @@ bool addressable(node_t *n);
 void declare_decl(node_t *node, sdecl_tracker_t *dt,
 		  void (*declare)(std::vector<sdecl_t*>*, void*), void *data);
 void redeclared_error(ident_expr_t *ident, diagnostic_t *diag);
+bool is_type(node_t *n, scope_block_t *scope);
+
+
 
 
 //------------------------------------------------------------------------------
@@ -1777,7 +1780,6 @@ struct pass2_t {
 	value_stype_t typecheck_unary_expr(unary_expr_t *expr);
 	value_stype_t typecheck_ident_expr(ident_expr_t *expr);
 	value_stype_t typecheck_type_cast_expr(type_cast_expr_t *expr);
-	value_stype_t typecheck_type_expr(type_expr_t *expr);
 	value_stype_t typecheck_builtin_call_expr(call_expr_t *expr);
 	value_stype_t typecheck_call_expr(call_expr_t *expr, bool mok = false);
 	value_stype_t typecheck_index_expr(index_expr_t *expr);

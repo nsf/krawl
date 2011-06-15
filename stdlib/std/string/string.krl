@@ -8,7 +8,7 @@ type String struct {
 }
 
 func New(cap uint) (s *String) {
-	s = stdlib.malloc(sizeof(type String))
+	s = stdlib.malloc(sizeof(String))
 	s.data = stdlib.malloc(cap + 1)
 	s.cap = cap
 	s.len = 0
@@ -20,7 +20,7 @@ func Free(s *String) {
 }
 
 func FromCStr(cstr *byte) (s *String) {
-	s = stdlib.malloc(sizeof(type String))
+	s = stdlib.malloc(sizeof(String))
 	s.data = string.strdup(cstr)
 	s.len = string.strlen(cstr)
 	s.cap = s.len
