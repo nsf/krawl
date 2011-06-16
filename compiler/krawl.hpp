@@ -1628,6 +1628,11 @@ bool addressable(node_t *n);
 void declare_decl(node_t *node, sdecl_tracker_t *dt,
 		  void (*declare)(std::vector<sdecl_t*>*, void*), void *data);
 void redeclared_error(ident_expr_t *ident, diagnostic_t *diag);
+void fp_truncated_error(node_t *from, node_t *to, diagnostic_t *diag);
+void const_overflows_error(node_t *what, value_t *val,
+			   stype_t *ty, diagnostic_t *diag);
+void not_assignable_error(source_loc_t pos, node_t *from, node_t *to,
+			  stype_t *from_ty, stype_t *to_ty, diagnostic_t *diag);
 bool is_type(node_t *n, scope_block_t *scope);
 
 

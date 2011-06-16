@@ -1997,6 +1997,58 @@ void redeclared_error(ident_expr_t *expr, diagnostic_t *diag)
 	diag->report(m);
 }
 
+void fp_truncated_error(node_t *from, node_t *to, diagnostic_t *diag)
+{
+	size_t ranges_n = 1;
+	source_loc_range_t ranges[2];
+	ranges[0] = from->source_loc_range();
+	if (to) {
+		ranges[1] = to->source_loc_range();
+		ranges_n = 2;
+	}
+
+	message_t *m;
+	m = new_message(MESSAGE_ERROR,
+			ranges[0].beg, false, ranges, ranges_n,
+			"floating point constant truncated to integer");
+	diag->report(m);
+}
+
+void const_overflows_error(node_t *what, value_t *val,
+			   stype_t *ty, diagnostic_t *diag)
+{
+	source_loc_range_t range = what->source_loc_range();
+	message_t *m;
+	m = new_message(MESSAGE_ERROR,
+			range.beg, false, &range, 1,
+			"constant %s overflows '%s'",
+			val->to_string().c_str(),
+			ty->to_string().c_str());
+	diag->report(m);
+}
+
+void not_assignable_error(source_loc_t pos, node_t *from, node_t *to,
+			  stype_t *from_ty, stype_t *to_ty, diagnostic_t *diag)
+{
+	size_t ranges_n = 1;
+	source_loc_range_t ranges[2];
+	ranges[0] = from->source_loc_range();
+	if (to) {
+		ranges[1] = to->source_loc_range();
+		ranges_n = 2;
+	}
+
+	bool hltok = ranges[0].beg != pos;
+
+	message_t *m;
+	m = new_message(MESSAGE_ERROR,
+			pos, hltok, ranges, ranges_n,
+			"'%s' is not assignable to '%s'",
+			from_ty->to_string().c_str(),
+			to_ty->to_string().c_str());
+	diag->report(m);
+}
+
 bool is_type(node_t *n, scope_block_t *scope)
 {
 	if (n->is_type())
@@ -2241,14 +2293,8 @@ size_t pass2_t::typegen_array_size(node_t *size)
 	}
 
 	if (IS_STYPE_FLOAT(idx.stype)) {
-		source_loc_range_t range = size->source_loc_range();
 		if (!mpfr_integer_p(idx.value.xfloat)) {
-			message_t *m;
-			m = new_message(MESSAGE_ERROR,
-					range.beg, false, &range, 1,
-					"floating point constant "
-					"truncated to integer");
-			diag->report(m);
+			fp_truncated_error(size, 0, diag);
 			return 0;
 		}
 		idx.value = idx.value.to_int();
@@ -3582,18 +3628,7 @@ void pass2_t::typecheck_assign_stmt(assign_stmt_t *stmt)
 			continue;
 
 		if (!assignable(type, vst.stype)) {
-			source_loc_range_t ranges[] = {
-				e->source_loc_range(),
-				val->source_loc_range()
-			};
-
-			message_t *m;
-			m = new_message(MESSAGE_ERROR,
-					stmt->pos, true, ranges, 2,
-					"'%s' is not assignable to '%s'",
-					type->to_string().c_str(),
-					vst.stype->to_string().c_str());
-			diag->report(m);
+			not_assignable_error(stmt->pos, val, e, type, vst.stype, diag);
 			continue;
 		}
 
@@ -3918,13 +3953,9 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 							     csd->pos, csd->init);
 			} else {
 				csd->typeerror = true;
-				message_t *m;
-				m = new_message(MESSAGE_ERROR,
-						csd->pos, true, ranges, 2,
-						"'%s' is not assignable to '%s'",
-						vst.stype->to_string().c_str(),
-						csd->stype->to_string().c_str());
-				diag->report(m);
+				not_assignable_error(csd->pos, csd->init,
+						     csd->ident, vst.stype,
+						     csd->stype, diag);
 				csd->stype = 0;
 			}
 		} else {
@@ -3972,18 +4003,10 @@ void pass2_t::resolve_sdecl(sdecl_t *d)
 					// all ok
 					vsd->stype = owntype;
 				} else {
-					source_loc_range_t ranges[] = {
-						vsd->ident->source_loc_range(),
-						vsd->init->source_loc_range()
-					};
 					vsd->typeerror = true;
-					message_t *m;
-					m = new_message(MESSAGE_ERROR,
-							vsd->pos, true, ranges, 2,
-							"'%s' is not assignable to '%s'",
-							vsd->stype->to_string().c_str(),
-							owntype->to_string().c_str());
-					diag->report(m);
+					not_assignable_error(vsd->pos, vsd->init,
+							     vsd->ident, vsd->stype,
+							     owntype, diag);
 					vsd->stype = 0;
 				}
 			} else
@@ -4266,14 +4289,7 @@ void pass2_t::realize_compound_lit_type(compound_lit_t *expr, stype_t *ctx)
 
 		if (!assignable(e->vst.stype, t)) {
 			source_loc_range_t range = e->source_loc_range();
-
-			message_t *m;
-			m = new_message(MESSAGE_ERROR,
-					range.beg, false, &range, 1,
-					"'%s' is not assignable to '%s'",
-					e->vst.stype->to_string().c_str(),
-					t->to_string().c_str());
-			diag->report(m);
+			not_assignable_error(range.beg, e, 0, e->vst.stype, t, diag);
 		} else
 			realize_expr_type(e, t);
 	}
@@ -4309,26 +4325,14 @@ void pass2_t::realize_expr_type(node_t *expr, stype_t *ctx)
 				vst->value = vst->value.to_float();
 			} else if (IS_STYPE_FLOAT(from) && IS_STYPE_INT(to)) {
 				if (!mpfr_integer_p(vst->value.xfloat)) {
-					message_t *m;
-					m = new_message(MESSAGE_ERROR,
-							range.beg, false, &range, 1,
-							"floating point constant "
-							"truncated to integer");
-					diag->report(m);
+					fp_truncated_error(expr, 0, diag);
 					return;
 				} else
 					vst->value = vst->value.to_int();
 			}
 
-			if (!value_fits_in_type(&vst->value, to)) {
-				message_t *m;
-				m = new_message(MESSAGE_ERROR,
-						range.beg, false, &range, 1,
-						"constant %s overflows '%s'",
-						vst->value.to_string().c_str(),
-						ctx->to_string().c_str());
-				diag->report(m);
-			}
+			if (!value_fits_in_type(&vst->value, to))
+				const_overflows_error(expr, &vst->value, ctx, diag);
 		}
 		return;
 	}
@@ -4444,15 +4448,7 @@ value_t pass2_t::eval_binop(value_stype_t *vs1, value_stype_t *vs2,
 		if (v1.type != VALUE_INT) {
 			KRAWL_QASSERT(v1.type == VALUE_FLOAT);
 			if (!mpfr_integer_p(v1.xfloat)) {
-				source_loc_range_t ranges[] = {
-					expr->lhs->source_loc_range()
-				};
-				message_t *m;
-				m = new_message(MESSAGE_ERROR,
-						expr->pos, true, ranges, 1,
-						"floating point constant "
-						"truncated to integer");
-				diag->report(m);
+				fp_truncated_error(expr->lhs, 0, diag);
 				return value_t::error;
 			}
 			v1 = v1.to_int();
@@ -4460,15 +4456,7 @@ value_t pass2_t::eval_binop(value_stype_t *vs1, value_stype_t *vs2,
 		if (v2.type != VALUE_INT) {
 			KRAWL_QASSERT(v2.type == VALUE_FLOAT);
 			if (!mpfr_integer_p(v2.xfloat)) {
-				source_loc_range_t ranges[] = {
-					expr->rhs->source_loc_range()
-				};
-				message_t *m;
-				m = new_message(MESSAGE_ERROR,
-						expr->pos, true, ranges, 1,
-						"floating point constant "
-						"truncated to integer");
-				diag->report(m);
+				fp_truncated_error(expr->rhs, 0, diag);
 				return value_t::error;
 			}
 			v2 = v2.to_int();
@@ -4489,17 +4477,7 @@ value_t pass2_t::eval_binop(value_stype_t *vs1, value_stype_t *vs2,
 
 	// check whether type is large enough to hold the value
 	if (!value_fits_in_type(&out, result)) {
-		source_loc_range_t ranges[] = {
-			expr->lhs->source_loc_range(),
-			expr->rhs->source_loc_range()
-		};
-		message_t *m;
-		m = new_message(MESSAGE_ERROR,
-				expr->pos, true, ranges, 2,
-				"constant %s overflows '%s'",
-				out.to_string().c_str(),
-				result->to_string().c_str());
-		diag->report(m);
+		const_overflows_error(expr, &out, result, diag);
 		return value_t::error;
 	}
 
@@ -4525,14 +4503,7 @@ value_t pass2_t::eval_unop(value_stype_t *v, stype_t *result, unary_expr_t *expr
 
 	// check whether type is large enough to hold the value
 	if (!value_fits_in_type(&out, result)) {
-		source_loc_range_t range = expr->expr->source_loc_range();
-		message_t *m;
-		m = new_message(MESSAGE_ERROR,
-				expr->pos, true, &range, 1,
-				"constant %s overflows '%s'",
-				out.to_string().c_str(),
-				result->to_string().c_str());
-		diag->report(m);
+		const_overflows_error(expr, &out, result, diag);
 		return value_t::error;
 	}
 
@@ -4866,25 +4837,14 @@ value_t pass2_t::eval_type_cast(value_t *v, stype_t *from,
 		val = v->to_float();
 	} else if (IS_STYPE_FLOAT(from) && IS_STYPE_INT(to)) {
 		if (!mpfr_integer_p(v->xfloat)) {
-			message_t *m;
-			m = new_message(MESSAGE_ERROR,
-					expr->pos_dot, true, ranges, 2,
-					"floating point constant "
-					"truncated to integer");
-			diag->report(m);
+			fp_truncated_error(expr->expr, 0, diag);
 			return value_t::error;
 		}
 		val = v->to_int();
 	}
 
 	if (!value_fits_in_type(&val, to)) {
-		message_t *m;
-		m = new_message(MESSAGE_ERROR,
-				expr->pos_dot, true, ranges, 2,
-				"constant %s overflows '%s'",
-				val.to_string().c_str(),
-				to->to_string().c_str());
-		diag->report(m);
+		const_overflows_error(expr->expr, &val, to, diag);
 		return value_t::error;
 	}
 	return val;
@@ -4910,25 +4870,14 @@ value_t pass2_t::eval_assignment(value_t *v, stype_t *from, stype_t *to,
 		val = v->to_float();
 	} else if (IS_STYPE_FLOAT(from) && IS_STYPE_INT(to)) {
 		if (!mpfr_integer_p(v->xfloat)) {
-			message_t *m;
-			m = new_message(MESSAGE_ERROR,
-					pos, true, ranges, 2,
-					"floating point constant "
-					"truncated to integer");
-			diag->report(m);
+			fp_truncated_error(init, name, diag);
 			return value_t::error;
 		}
 		val = v->to_int();
 	}
 
 	if (!value_fits_in_type(&val, to)) {
-		message_t *m;
-		m = new_message(MESSAGE_ERROR,
-				pos, true, ranges, 2,
-				"constant %s overflows '%s'",
-				val.to_string().c_str(),
-				to->to_string().c_str());
-		diag->report(m);
+		const_overflows_error(init, &val, to, diag);
 		return value_t::error;
 	}
 	return val;
