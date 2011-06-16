@@ -1532,7 +1532,7 @@ ident_expr_t *import_sdecl_t::get_ident()
 static FILE *open_file_on(std::string *path,
 			  std::vector<const char*> *include_dirs)
 {
-	if (path->find_first_of("./") == 0) {
+	if (path->find("./") == 0) {
 		return fopen(path->c_str(), "rb");
 	}
 
@@ -1578,8 +1578,22 @@ void import_sdecl_t::load(brawl_context_t *ctx,
 	prefix = ds.prefix;
 	if (name.empty())
 		name = ds.package;
-	for (size_t i = 0, n = ds.sdecls.size(); i < n; ++i)
-		decls[ds.sdecls[i]->name] = ds.sdecls[i];
+
+	// attribute "prefix"
+	std::string replace_prefix;
+	if (spec->attrs)
+		replace_prefix = spec->attrs->get_value("prefix");
+
+	for (size_t i = 0, n = ds.sdecls.size(); i < n; ++i) {
+		std::string name = ds.sdecls[i]->name;
+		if (!replace_prefix.empty()) {
+			if (name.find(replace_prefix) == 0) {
+				name = name.substr(replace_prefix.size(),
+						   name.size() - replace_prefix.size());
+			}
+		}
+		decls[name] = ds.sdecls[i];
+	}
 }
 
 //------------------------------------------------------------------------------

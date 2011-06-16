@@ -237,6 +237,52 @@ token_t::~token_t()
 }
 
 //------------------------------------------------------------------------------
+// attributes_t
+//------------------------------------------------------------------------------
+
+attribute_t::attribute_t(token_t *name, token_t *value):
+	name(name), value(value)
+{
+}
+
+attribute_t::~attribute_t()
+{
+	delete name;
+	delete value;
+}
+
+
+attributes_t::attributes_t(attribute_vector_t *attrs)
+{
+	this->attrs.swap(*attrs);
+	delete attrs;
+}
+
+attributes_t::~attributes_t()
+{
+	for (size_t i = 0, n = attrs.size(); i < n; ++i)
+		delete attrs[i];
+}
+
+attribute_t *attributes_t::get(const char *name)
+{
+	for (size_t i = 0, n = attrs.size(); i < n; ++i) {
+		if (strcmp(attrs[i]->name->val.xstr, name) == 0)
+			return attrs[i];
+	}
+	return 0;
+}
+
+std::string attributes_t::get_value(const char *name)
+{
+	attribute_t *a = get(name);
+	if (!a)
+		return "";
+
+	return a->value->val.to_string();
+}
+
+//------------------------------------------------------------------------------
 // node_t
 //------------------------------------------------------------------------------
 
@@ -1369,7 +1415,7 @@ bool func_type_t::named_results()
 //------------------------------------------------------------------------------
 
 import_spec_t::import_spec_t(token_t *i, token_t *p):
-	name(0)
+	name(0), attrs(0)
 {
 	if (i)
 		name = new ident_expr_t(i);
@@ -1391,28 +1437,35 @@ std::string import_spec_t::to_string(int indent)
 	return out;
 }
 
-import_decl_t::import_decl_t(import_spec_vector_t *s, token_t *t,
+import_decl_t::import_decl_t(attributes_t *attrs,
+			     import_spec_vector_t *s, token_t *t,
 			     token_t *l, token_t *r):
-	node_t(node_t::IMPORT_DECL), pos(t->pos), pos_lp(l->pos), pos_rp(r->pos)
+	node_t(node_t::IMPORT_DECL), attrs(attrs),
+	pos(t->pos), pos_lp(l->pos), pos_rp(r->pos)
 {
 	specs.swap(*s);
 	delete s;
 	delete t;
 	delete l;
 	delete r;
+	for (size_t i = 0, n = specs.size(); i < n; ++i)
+		specs[i]->attrs = attrs;
 }
 
-import_decl_t::import_decl_t(import_spec_t *is, token_t *t):
-	node_t(node_t::IMPORT_DECL), pos(t->pos)
+import_decl_t::import_decl_t(attributes_t *attrs, import_spec_t *is, token_t *t):
+	node_t(node_t::IMPORT_DECL), attrs(attrs), pos(t->pos)
 {
 	specs.push_back(is);
 	delete t;
+	for (size_t i = 0, n = specs.size(); i < n; ++i)
+		specs[i]->attrs = attrs;
 }
 
 import_decl_t::~import_decl_t()
 {
 	for (size_t i = 0, n = specs.size(); i < n; ++i)
 		delete specs[i];
+	delete attrs;
 }
 
 std::string import_decl_t::to_string(int indent)

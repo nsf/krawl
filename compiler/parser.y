@@ -37,6 +37,34 @@ program(P) ::= decl_list(L) osemi. {
 
 
 //------------------------------------------------------------------------------
+// Attrubutes
+//
+// <align=8>, <extern>, <prefix="SDL_", C>, <packed>, <public, mangle=false>
+//------------------------------------------------------------------------------
+
+%type attr { attribute_t* }
+attr(A) ::= IDENT(N) ASSIGN INT(T).    { A = new attribute_t(N, T); }
+attr(A) ::= IDENT(N) ASSIGN FLOAT(T).  { A = new attribute_t(N, T); }
+attr(A) ::= IDENT(N) ASSIGN STRING(T). { A = new attribute_t(N, T); }
+attr(A) ::= IDENT(N) ASSIGN CHAR(T).   { A = new attribute_t(N, T); }
+attr(A) ::= IDENT(N) ASSIGN IDENT(T).  { A = new attribute_t(N, T); }
+attr(A) ::= IDENT(N).                  { A = new attribute_t(N, 0); }
+
+%type attr_list { attribute_vector_t* }
+attr_list(AL) ::= attr(A).                      { AL = new attribute_vector_t(1, A); }
+attr_list(AL) ::= attr_list(AL2) COMMA attr(A). { AL2->push_back(A); AL = AL2; }
+
+%type attrs { attributes_t* }
+attrs(A) ::= LT attr_list(AL) GT. { A = new attributes_t(AL); }
+
+%type oattrs { attributes_t* }
+oattrs(A) ::= .          { A = 0; }
+oattrs(A) ::= attrs(AA). { A = AA; }
+
+
+
+
+//------------------------------------------------------------------------------
 // Statement list
 //------------------------------------------------------------------------------
 
@@ -182,11 +210,11 @@ decl_list(L) ::= decl_list(L2) SEMICOLON decl(D). { L2->push_back(D); L = L2; }
 //------------------------------------------------------------------------------
 
 %type decl { node_t* }
-decl(D) ::= IMPORT(TOK) import_spec(IS). {
-	D = new import_decl_t(IS, TOK);
+decl(D) ::= oattrs(A) IMPORT(TOK) import_spec(IS). {
+	D = new import_decl_t(A, IS, TOK);
 }
-decl(D) ::= IMPORT(TOK) LPAREN(L) import_spec_list(ISL) osemi RPAREN(R). {
-	D = new import_decl_t(ISL, TOK, L, R);
+decl(D) ::= oattrs(A) IMPORT(TOK) LPAREN(L) import_spec_list(ISL) osemi RPAREN(R). {
+	D = new import_decl_t(A, ISL, TOK, L, R);
 }
 decl(D) ::= TYPE(TOK) type_spec(TS). {
 	D = new type_decl_t(TS, TOK);
@@ -639,11 +667,6 @@ ocomma ::= COMMA.
 %type oexpr { node_t* }
 oexpr(OE) ::= .        { OE = 0; }
 oexpr(OE) ::= expr(E). { OE = E; }
-
-// optional statement list
-//%type ostmt_list { node_vector_t* }
-//ostmt_list(OSL) ::= .              { OSL = 0; }
-//ostmt_list(OSL) ::= stmt_list(SL). { OSL = SL; }
 
 // optional type
 %type otype { node_t* }

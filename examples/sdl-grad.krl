@@ -1,6 +1,7 @@
+<prefix="SDL_">
 import "SDL/SDL.h"
 
-func put_pixel(screen *SDL.SDL_Surface, x, y, r, g, b int) {
+func put_pixel(screen *SDL.Surface, x, y, r, g, b int) {
 	p := screen.pixels.(*byte) +
 		y * screen.pitch +
 		x * screen.format.BytesPerPixel
@@ -10,7 +11,7 @@ func put_pixel(screen *SDL.SDL_Surface, x, y, r, g, b int) {
 	p[2] = b
 }
 
-func fill(screen *SDL.SDL_Surface) {
+func fill(screen *SDL.Surface) {
 	step := 1.0 / 512
 	col := 0.0
 
@@ -24,18 +25,18 @@ func fill(screen *SDL.SDL_Surface) {
 }
 
 func main(argc int, argv **byte) int {
-	SDL.SDL_Init(SDL.SDL_INIT_VIDEO)
-	screen := SDL.SDL_SetVideoMode(512, 512, 24, SDL.SDL_SWSURFACE)
+	SDL.Init(SDL.INIT_VIDEO)
+	screen := SDL.SetVideoMode(512, 512, 24, SDL.SWSURFACE)
 	fill(screen)
-	SDL.SDL_Flip(screen)
+	SDL.Flip(screen)
 
-	var e SDL.SDL_Event
+	var e SDL.Event
 	for {
-		for SDL.SDL_PollEvent(&e) != 0 {
+		for SDL.PollEvent(&e) != 0 {
 			switch e._type {
-			case SDL.SDL_QUIT:
+			case SDL.QUIT:
 				return 0
-			case SDL.SDL_KEYDOWN:
+			case SDL.KEYDOWN:
 				return 0
 			}
 		}

@@ -298,6 +298,30 @@ private:
 const char *token_to_string(int tok);
 
 //------------------------------------------------------------------------------
+// attributes_t
+//------------------------------------------------------------------------------
+
+struct attribute_t {
+	token_t *name;
+	token_t *value;
+
+	attribute_t(token_t *name, token_t *value);
+	~attribute_t();
+};
+
+typedef std::vector<attribute_t*> attribute_vector_t;
+
+struct attributes_t {
+	attribute_vector_t attrs;
+
+	attributes_t(attribute_vector_t *attrs);
+	~attributes_t();
+
+	attribute_t *get(const char *name);
+	std::string get_value(const char *name);
+};
+
+//------------------------------------------------------------------------------
 // node_t
 //------------------------------------------------------------------------------
 
@@ -840,6 +864,7 @@ struct func_type_t : node_t {
 struct import_spec_t {
 	ident_expr_t *name;
 	basic_lit_expr_t *path;
+	attributes_t *attrs;
 
 	import_spec_t(token_t *ident, token_t *path);
 	~import_spec_t();
@@ -849,14 +874,16 @@ struct import_spec_t {
 typedef std::vector<import_spec_t*> import_spec_vector_t;
 
 struct import_decl_t : node_t {
+	attributes_t *attrs;
 	import_spec_vector_t specs;
 	source_loc_t pos; // import
 	source_loc_t pos_lp;
 	source_loc_t pos_rp;
 
-	import_decl_t(import_spec_vector_t *s, token_t *t,
+	import_decl_t(attributes_t *attrs,
+		      import_spec_vector_t *s, token_t *t,
 		      token_t *l, token_t *r);
-	import_decl_t(import_spec_t *is, token_t *t);
+	import_decl_t(attributes_t *attrs, import_spec_t *is, token_t *t);
 	~import_decl_t();
 	std::string to_string(int indent);
 	source_loc_range_t source_loc_range();

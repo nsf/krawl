@@ -1,5 +1,7 @@
+<prefix="SDL_">
+import "SDL/SDL.h"
+
 import (
-	"SDL/SDL.h"
 	"stdlib.h"
 	"string.h"
 	"stdio.h"
@@ -65,7 +67,7 @@ const specLMirrored = `
 0000
 `
 
-var screen *SDL.SDL_Surface
+var screen *SDL.Surface
 
 type TetrisBlockColor struct {
 	r, g, b byte
@@ -92,19 +94,19 @@ var specs []*byte = {
 }
 
 func BlockDraw(x, y int, color TetrisBlockColor) {
-	chalf := SDL.SDL_MapRGB(screen.format,
+	chalf := SDL.MapRGB(screen.format,
 				color.r / 2, color.g / 2, color.b / 2)
-	cfull := SDL.SDL_MapRGB(screen.format,
+	cfull := SDL.MapRGB(screen.format,
 				color.r, color.g, color.b)
 
-	r := {x, y, blockSize, blockSize}.(SDL.SDL_Rect)
-	SDL.SDL_FillRect(screen, &r, chalf)
+	r := {x, y, blockSize, blockSize}.(SDL.Rect)
+	SDL.FillRect(screen, &r, chalf)
 
 	r.x += smallBlockOffset
 	r.y += smallBlockOffset
 	r.w, r.h = smallBlockSize, smallBlockSize
 
-	SDL.SDL_FillRect(screen, &r, cfull)
+	SDL.FillRect(screen, &r, cfull)
 }
 
 //-------------------------------------------------------------------------
@@ -522,35 +524,35 @@ func GameSessionDraw(gs *GameSession) {
 }
 
 func main(argc int, argv **byte) int {
-	SDL.SDL_Init(SDL.SDL_INIT_VIDEO | SDL.SDL_INIT_TIMER)
-	screen = SDL.SDL_SetVideoMode(640, 480, 24, SDL.SDL_HWSURFACE | SDL.SDL_DOUBLEBUF)
-	stdlib.srand(SDL.SDL_GetTicks())
+	SDL.Init(SDL.INIT_VIDEO | SDL.INIT_TIMER)
+	screen = SDL.SetVideoMode(640, 480, 24, SDL.HWSURFACE | SDL.DOUBLEBUF)
+	stdlib.srand(SDL.GetTicks())
 
-	SDL.SDL_WM_SetCaption("KrawlTris", "KrawlTris")
-	SDL.SDL_EnableKeyRepeat(250, 45)
+	SDL.WM_SetCaption("KrawlTris", "KrawlTris")
+	SDL.EnableKeyRepeat(250, 45)
 
 	gs := NewGameSession()
-	last := SDL.SDL_GetTicks()
+	last := SDL.GetTicks()
 	running := true
 
-	var e SDL.SDL_Event
+	var e SDL.Event
 	for running {
-		for SDL.SDL_PollEvent(&e) != 0 {
+		for SDL.PollEvent(&e) != 0 {
 			switch e._type {
-			case SDL.SDL_QUIT:
+			case SDL.QUIT:
 				running = false
-			case SDL.SDL_KEYDOWN:
+			case SDL.KEYDOWN:
 				running = GameSessionHandleKey(gs, e.key.keysym.sym)
 			}
 		}
 
-		now := SDL.SDL_GetTicks()
+		now := SDL.GetTicks()
 		delta := now - last
 		last = now
 
-		black := SDL.SDL_MapRGB(screen.format, 0, 0, 0)
-		all := {0, 0, 640, 480}.(SDL.SDL_Rect)
-		SDL.SDL_FillRect(screen, &all, black)
+		black := SDL.MapRGB(screen.format, 0, 0, 0)
+		all := {0, 0, 640, 480}.(SDL.Rect)
+		SDL.FillRect(screen, &all, black)
 
 		GameSessionUpdate(gs, delta)
 		if gs.gameover {
@@ -558,7 +560,7 @@ func main(argc int, argv **byte) int {
 		}
 
 		GameSessionDraw(gs)
-		SDL.SDL_Flip(screen)
+		SDL.Flip(screen)
 	}
 
 	return 0
