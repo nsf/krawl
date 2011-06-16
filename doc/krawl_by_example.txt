@@ -21,7 +21,7 @@ Summary of differences with C
 - Multiple return values.
 - Tuple assignments (swap without temporaries, yay!).
 - Various changes to `switch` statement.
-- Stronger and explicit type system.
+- Slightly stronger type system.
 - Arrays behave like values.
 - Uninterpreted multiline string literals.
 - Many C expressions are statements.
@@ -30,6 +30,7 @@ Summary of differences with C
 - Arbitrary precision constants.
 - Unified `for` loop statement.
 - Removed "`->`" accessor.
+- No more semicolons.
 
 Differences with C in details
 -----------------------------
@@ -384,57 +385,73 @@ default:
 }
 -----------------------
 
-Stronger and explicit type system
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-WARNING: This section is out-dated. Krawl has C-like unrestricted type system.
-
-Krawl's type system is much more explicit than C's, there are no implicit type
-casts. Floating point type cannot be used as an integer, integer cannot be used
-as a boolean, unsigned integer cannot be used as a signed integer, etc. There
-are some implicit conversions happening during assignments though, for example
-a pointer to an array can be converted to a pointer to an array's element type,
-but it doesn't break things. Many of you may think (as was I), that such a
-strict type system gives headaches to the programmer and I must say it's not
-true. Explicit type system acutally forces you to think about types and why are
-you using them. In C most libraries define a zillion of types for no reason,
-they say its for portability, but defining zillion types doesn't make you
-portable. Let's take a look at example, where type system deals with
-portability:
+Slightly stronger type system
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Krawl's type system is slightly stronger than C's. There are no implicit type
+casts between "classes" of types (boolean, integer, floating point number).
+E.g. you can't assign a variable of type integer to a variable of type float
+without adding an explicit cast. And it's not possible to cast an integer type
+to a boolean type, even explicitly, in order to do that use the following
+trick:
 
 [source,krawl]
 -----------------------
-// Let's take famous C function:
-
-type size_t uint32 // on x86 or uint64 on x86_64
-func memcpy(dest, src *void, n size_t) *void
-
-// Obviously you don't need to copy more bytes than your system supports,
-// that's why C uses size_t here. But how do you use that function (let's
-// imagine our type system is the same as in C):
-
-var size uint64 = GetSize()
-memcpy(d, s, size)
-
-// Ok, works for both x86 and x86_64, but on x86 it is possible to lose some
-// information, because size_t is smaller than uint64. This on the other hand:
-
-var size uint32 = GetSize()
-memcpy(d, s, size)
-
-// Works safely for both platforms. You see, when you use variable sized types
-// you may want to have an explicit cast to notice your code reader that there
-// is a type change and possible information loss. You don't want to have these
-// things implicit. In Krawl it doesn't matter whether uint32 or uint64 have
-// the same size as size_t or not, they are different types. Therefore you have
-// to introduce a cast and this cast will work as your agreement for possible
-// information loss:
-
-var size uint64 = GetSize()
-memcpy(d, s, size.(size_t))
+var is_true bool = some_int != 0
 -----------------------
 
-I wasn't sure for a long time that this is a right approach and probably I'm
-still not 100% sure. But it's definitely something interesting to think about.
+Another difference with C is the common type of two types in a binary
+expression. In C the common type of signed int and unsigned int of the same
+size is unsigned int. In Krawl I use signed int. The rationale for that is
+simple: you rarely see unsigned values larger than 2,147,483,647, and values
+that are less than zero are much frequent. Therefore it is much likely to
+misinterpret integer as unsigned integer than vice versa. Also `int` is the
+default type of the type system in general.
+
+[source,krawl]
+-----------------------
+var x uint = 500
+var y int = -20
+var z = x + y // 'z' is 'int' and its value is 480
+-----------------------
+
+Also it's worth to mention that there is no such thing as integer promotion in
+type system. In C each integer type that is smaller than int is being
+implicitly promoted to int during binary and unary operations. For example that
+is true in C++0x:
+
+[source,c]
+-----------------------
+unsigned short x = 5;
+auto y = x; // 'y' is 'unsigned short'
+auto z = +x; // 'z' is 'int' due to integer promotion
+-----------------------
+
+In Krawl integer promotion happens only behind the curtains and doesn't affect
+the common type of a binary expression or a resulting type of an unary
+expression. For example the following is true in Krawl:
+
+[source,krawl]
+-----------------------
+var a, b uint8 = 250, 200
+var average = (a + b) / 2 // the result is 225, 'average' is 'uint8'
+
+type Packet {
+	size uint8
+}
+
+func SizeRequired(p1, p2, p3 *Packet) int {
+	// this expression doesn't overflow and the result can be bigger than
+	// uint8 can hold, because it is assigned to an int at the end and
+	// during expression evaluation all integers are temporarly promoted to
+	// int
+	return p1.size + p2.size + p3.size
+}
+-----------------------
+
+As you can see, Krawl chooses the best compromise possible. The idea is that in
+a language which uses type inference a lot, the resulting type of an expression
+matters and we can't just easily throw it away. But on the other hand language
+should help avoiding different programmer's mistakes.
 
 Arrays behave like values
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -704,7 +721,7 @@ for {
 -----------------------
 
 Removed "`->`" accessor
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 The famous C/C++ dereferencing struct field accessor was removed. Now "`.`"
 accessor does both types of field access. Rules are simple: if the operand is a
 struct, then it's a direct access operation, if the operand is a pointer to
@@ -724,3 +741,117 @@ type List struct {
 var x *List
 y := x.next.next.elem.a
 -----------------------
+
+No more semicolons
+~~~~~~~~~~~~~~~~~~
+Just the same way as Go programming language does, Krawl uses simple automatic
+semicolon insertion scheme. The rules are very simple and easy to remember. I
+can even show you the lexer code which inserts semicolons:
+
+[source,c]
+-----------------------
+// for non empty lines
+if (last_tline == line-1) {
+	// automatic semicolon insertion
+	switch (last_tok) {
+	case TOK_IDENT:
+	case TOK_INT:
+	case TOK_FLOAT:
+	case TOK_CHAR:
+	case TOK_STRING:
+	case TOK_BREAK:
+	case TOK_CONTINUE:
+	case TOK_FALLTHROUGH:
+	case TOK_RETURN:
+	case TOK_INC:
+	case TOK_DEC:
+	case TOK_RPAREN:
+	case TOK_RSB:
+	case TOK_RCURLY:
+		tok_op(TOK_SEMICOLON);
+		fbreak;
+		break;
+	default:
+		break;
+	}
+}
+-----------------------
+
+As you can see, semicolon is simply being inserted in each non-empty line which
+ends with one of the following tokens:
+
+-----------------------
+identifier
+15
+3.1415
+'a'
+"123"
+`123`
+break
+continue
+fallthrough
+return
+x++
+y--
+)
+]
+}
+-----------------------
+
+In practice it works just fine, but there are some things to remember about
+that. Each opening brace, be it a function brace or a statement brace, should
+be on the same line as the statement/declaration itself:
+
+[source,krawl]
+-----------------------
+// good
+func foo() {
+	if a > 10 {
+		say_yay()
+	}
+}
+
+// bad
+func foo()
+{
+	if a > 10
+	{
+		say_yay()
+	}
+}
+-----------------------
+
+Various list elements, be it function arguments or compound literal elements,
+must end with a comma (grammar allows optional comma at the end of both lists):
+
+[source,krawl]
+-----------------------
+// good
+var numbers []int = {
+	1,
+	2,
+	3,
+}
+
+var result = foo(
+	a,
+	b,
+	c,
+)
+
+// bad
+var numbers []int = {
+	1,
+	2,
+	3
+}
+
+var result = foo(
+	a,
+	b,
+	c
+)
+-----------------------
+
+And that's pretty all you should be aware of and as a result you get automatic
+semicolon insertion. It can't be a bad deal.
