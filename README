@@ -5,3 +5,9 @@ development, find us on IRC: #krawling @ freenode.
 
 For a sneak peek take a look at this document: 
 	http://nosmileface.ru/krawl/krawl_by_example.html
+
+Portability notes:
+ - works on x86, linux
+ - va_list is broken on amd64
+ - almost works on darwin, there are some problems with clang plugin
+ - haven't tried it on windows, most likely doesn't work at all
