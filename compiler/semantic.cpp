@@ -3228,12 +3228,7 @@ void pass2_t::pass(std::vector<sdecl_t*> *pkgdecls)
 		if (!sd->stype || sd->typeerror)
 			continue;
 
-		check_type_for_size_loops(diag, sd->stype->as_named());
-
-		if (!sd->typeerror && IS_STYPE_STRUCT_OR_UNION(sd->stype)) {
-			struct_stype_t *sst = sd->stype->as_struct();
-			fix_structs_alignment(sst);
-		}
+		check_declared_type_sdecl(diag, (type_sdecl_t*)sd);
 	}
 
 	for (size_t i = 0, n = pkgdecls->size(); i < n; ++i) {

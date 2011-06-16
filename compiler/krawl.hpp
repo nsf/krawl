@@ -1260,6 +1260,7 @@ struct array_stype_t : stype_t {
 stype_t *get_int_type(size_t bits);
 size_t stype_hash(stype_t *t);
 void check_type_for_size_loops(diagnostic_t *diag, named_stype_t *t);
+void check_declared_type_sdecl(diagnostic_t *diag, type_sdecl_t *sd);
 void fix_structs_alignment(struct_stype_t *sst);
 size_t alignment_of(stype_t *t);
 size_t size_from_array_or_compound(node_t *v);
