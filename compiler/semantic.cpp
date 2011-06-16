@@ -2293,6 +2293,7 @@ stype_t *pass2_t::typegen(node_t *expr)
 	case node_t::UNARY_EXPR:
 	{
 		unary_expr_t *e = (unary_expr_t*)expr;
+		KRAWL_QASSERT(e->tok == TOK_TIMES);
 		stype_t *points_to = typegen(e->expr);
 
 		if (!points_to)
