@@ -82,6 +82,7 @@ struct stype_t;
 struct sdecl_t;
 struct scope_block_t;
 struct brawl_context_t;
+struct type_sdecl_t;
 namespace llvm { struct Type; }
 namespace llvm { struct Value; }
 

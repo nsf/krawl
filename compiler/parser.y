@@ -451,7 +451,7 @@ pexpr(A) ::= pexpr(P) DOT(D) LPAREN(L) type(T) RPAREN(R). {
 pexpr(A) ::= pexpr(P) LPAREN(L) RPAREN(R).   { A = new call_expr_t(P, 0, L, R); }
 
 // call expr with non-empty expr list
-pexpr(A) ::= pexpr(P) LPAREN(L) iexpr_list(EL) RPAREN(R). {
+pexpr(A) ::= pexpr(P) LPAREN(L) iexpr_list(EL) ocomma RPAREN(R). {
 	A = new call_expr_t(P, EL, L, R);
 }
 
@@ -536,7 +536,7 @@ ty_pexpr(A) ::= pexpr(P) DOT(D) LPAREN(L) type(T) RPAREN(R). {
 ty_pexpr(A) ::= pexpr(P) LPAREN(L) RPAREN(R).     { A = new call_expr_t(P, 0, L, R); }
 
 // call expr with non-empty expr list
-ty_pexpr(A) ::= pexpr(P) LPAREN(L) iexpr_list(EL) RPAREN(R). {
+ty_pexpr(A) ::= pexpr(P) LPAREN(L) iexpr_list(EL) ocomma RPAREN(R). {
 	A = new call_expr_t(P, EL, L, R);
 }
 
