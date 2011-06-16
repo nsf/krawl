@@ -2000,191 +2000,7 @@ static void yy_reduce(
 #line 2001 "parser.c"
         break;
       case 68: /* type ::= TIMES type */
-#line 329 "parser.y"
-{ yygotominor.yy184 = new pointer_type_t(yymsp[0].minor.yy184, yymsp[-1].minor.yy0); }
-#line 2006 "parser.c"
-        break;
-      case 69: /* type ::= LSB expr RSB type */
-      case 128: /* ty_pexpr ::= LSB expr RSB type */ yytestcase(yyruleno==128);
-#line 330 "parser.y"
-{ yygotominor.yy184 = new array_type_t(yymsp[-2].minor.yy184, yymsp[0].minor.yy184, yymsp[-3].minor.yy0, yymsp[-1].minor.yy0); }
-#line 2012 "parser.c"
-        break;
-      case 70: /* type ::= LSB RSB type */
-      case 129: /* ty_pexpr ::= LSB RSB type */ yytestcase(yyruleno==129);
-#line 331 "parser.y"
-{ yygotominor.yy184 = new array_type_t(0, yymsp[0].minor.yy184, yymsp[-2].minor.yy0, yymsp[-1].minor.yy0); }
-#line 2018 "parser.c"
-        break;
-      case 71: /* type ::= ident DOT ident */
-#line 332 "parser.y"
-{ yygotominor.yy184 = new selector_expr_t(yymsp[-2].minor.yy76, yymsp[0].minor.yy76);   yy_destructor(yypParser,60,&yymsp[-1].minor);
-}
-#line 2024 "parser.c"
-        break;
-      case 72: /* type ::= ident */
-      case 94: /* pexpr ::= ident */ yytestcase(yyruleno==94);
-      case 131: /* ty_pexpr ::= ident */ yytestcase(yyruleno==131);
-#line 333 "parser.y"
-{ yygotominor.yy184 = yymsp[0].minor.yy76; }
-#line 2031 "parser.c"
-        break;
-      case 73: /* type ::= STRUCT LCURLY ofield_semi_list_and_osemi RCURLY */
-      case 74: /* type ::= UNION LCURLY ofield_semi_list_and_osemi RCURLY */ yytestcase(yyruleno==74);
-#line 334 "parser.y"
-{
-	yygotominor.yy184 = new struct_type_t(yymsp[-1].minor.yy84, yymsp[-3].minor.yy0, yymsp[-2].minor.yy0, yymsp[0].minor.yy0);	
-}
-#line 2039 "parser.c"
-        break;
-      case 75: /* type ::= FUNC LPAREN oargs_comma_list RPAREN func_results */
-      case 140: /* ty_pexpr ::= FUNC LPAREN oargs_comma_list RPAREN func_results */ yytestcase(yyruleno==140);
-#line 340 "parser.y"
-{
-	yygotominor.yy184 = new func_type_t(yymsp[-2].minor.yy84, yymsp[0].minor.yy84, yymsp[-4].minor.yy0);
-  yy_destructor(yypParser,50,&yymsp[-3].minor);
-  yy_destructor(yypParser,51,&yymsp[-1].minor);
-}
-#line 2049 "parser.c"
-        break;
-      case 76: /* field_comma_list ::= nametype_list */
-#line 355 "parser.y"
-{
-	yygotominor.yy84 = nametypev_to_fieldv(ctx->diag, yymsp[0].minor.yy135, false);
-}
-#line 2056 "parser.c"
-        break;
-      case 77: /* args_comma_list ::= nametype_list ofunc_ellipsis */
-#line 360 "parser.y"
-{
-	yygotominor.yy84 = nametypev_to_fieldv(ctx->diag, yymsp[-1].minor.yy135, yymsp[0].minor.yy185);
-}
-#line 2063 "parser.c"
-        break;
-      case 78: /* args_comma_list ::= ELLIPSIS */
-#line 363 "parser.y"
-{
-	yygotominor.yy84 = nametypev_to_fieldv(ctx->diag, new nametype_vector_t, true);
-  yy_destructor(yypParser,63,&yymsp[0].minor);
-}
-#line 2071 "parser.c"
-        break;
-      case 79: /* field_semi_list ::= field */
-#line 368 "parser.y"
-{ yygotominor.yy84 = new field_vector_t(1, yymsp[0].minor.yy158); }
-#line 2076 "parser.c"
-        break;
-      case 80: /* field_semi_list ::= field_semi_list SEMICOLON field */
-#line 369 "parser.y"
-{
-	yymsp[-2].minor.yy84->push_back(yymsp[0].minor.yy158); yygotominor.yy84 = yymsp[-2].minor.yy84;
-  yy_destructor(yypParser,20,&yymsp[-1].minor);
-}
-#line 2084 "parser.c"
-        break;
-      case 81: /* nametype_list ::= nametype */
-#line 375 "parser.y"
-{ yygotominor.yy135 = new nametype_vector_t(1, yymsp[0].minor.yy115); }
-#line 2089 "parser.c"
-        break;
-      case 82: /* nametype_list ::= nametype_list COMMA nametype */
-#line 376 "parser.y"
-{
-	yymsp[-2].minor.yy135->push_back(yymsp[0].minor.yy115); yygotominor.yy135 = yymsp[-2].minor.yy135;
-  yy_destructor(yypParser,64,&yymsp[-1].minor);
-}
-#line 2097 "parser.c"
-        break;
-      case 83: /* nametype ::= ident type */
-#line 381 "parser.y"
-{ yygotominor.yy115.name = yymsp[-1].minor.yy76; yygotominor.yy115.type = yymsp[0].minor.yy184; }
-#line 2102 "parser.c"
-        break;
-      case 84: /* nametype ::= type */
-#line 382 "parser.y"
-{ yygotominor.yy115.name = 0; yygotominor.yy115.type = yymsp[0].minor.yy184; }
-#line 2107 "parser.c"
-        break;
-      case 85: /* ofunc_ellipsis ::= COMMA ELLIPSIS */
-#line 392 "parser.y"
-{ yygotominor.yy185 = true;   yy_destructor(yypParser,64,&yymsp[-1].minor);
-  yy_destructor(yypParser,63,&yymsp[0].minor);
-}
-#line 2114 "parser.c"
-        break;
-      case 86: /* ofunc_ellipsis ::= */
-#line 393 "parser.y"
-{ yygotominor.yy185 = false; }
-#line 2119 "parser.c"
-        break;
-      case 87: /* field ::= ident_list type */
-#line 406 "parser.y"
-{ yygotominor.yy158 = new field_t(yymsp[-1].minor.yy154, yymsp[0].minor.yy184); }
-#line 2124 "parser.c"
-        break;
-      case 88: /* field ::= type */
-#line 407 "parser.y"
-{ yygotominor.yy158 = new field_t(0, yymsp[0].minor.yy184); }
-#line 2129 "parser.c"
-        break;
-      case 89: /* basic_lit ::= INT */
-      case 90: /* basic_lit ::= FLOAT */ yytestcase(yyruleno==90);
-      case 91: /* basic_lit ::= STRING */ yytestcase(yyruleno==91);
-      case 92: /* basic_lit ::= CHAR */ yytestcase(yyruleno==92);
-#line 418 "parser.y"
-{ yygotominor.yy18 = new basic_lit_expr_t(yymsp[0].minor.yy0); }
-#line 2137 "parser.c"
-        break;
-      case 93: /* pexpr ::= basic_lit */
-      case 130: /* ty_pexpr ::= basic_lit */ yytestcase(yyruleno==130);
-#line 434 "parser.y"
-{ yygotominor.yy184 = yymsp[0].minor.yy18; }
-#line 2143 "parser.c"
-        break;
-      case 95: /* pexpr ::= LPAREN expr RPAREN */
-      case 132: /* ty_pexpr ::= LPAREN expr RPAREN */ yytestcase(yyruleno==132);
-#line 436 "parser.y"
-{ yygotominor.yy184 = new paren_expr_t(yymsp[-1].minor.yy184, yymsp[-2].minor.yy0, yymsp[0].minor.yy0); }
-#line 2149 "parser.c"
-        break;
-      case 96: /* pexpr ::= pexpr LSB expr RSB */
-      case 133: /* ty_pexpr ::= pexpr LSB expr RSB */ yytestcase(yyruleno==133);
-#line 437 "parser.y"
-{ yygotominor.yy184 = new index_expr_t(yymsp[-3].minor.yy184, yymsp[-1].minor.yy184, yymsp[-2].minor.yy0, yymsp[0].minor.yy0); }
-#line 2155 "parser.c"
-        break;
-      case 97: /* pexpr ::= pexpr DOT IDENT */
-      case 134: /* ty_pexpr ::= pexpr DOT IDENT */ yytestcase(yyruleno==134);
-#line 440 "parser.y"
-{
-	yygotominor.yy184 = new selector_expr_t(yymsp[-2].minor.yy184, new ident_expr_t(yymsp[0].minor.yy0));
-  yy_destructor(yypParser,60,&yymsp[-1].minor);
-}
-#line 2164 "parser.c"
-        break;
-      case 98: /* pexpr ::= pexpr DOT LPAREN type RPAREN */
-      case 135: /* ty_pexpr ::= pexpr DOT LPAREN type RPAREN */ yytestcase(yyruleno==135);
-#line 445 "parser.y"
-{
-	yygotominor.yy184 = new type_cast_expr_t(yymsp[-4].minor.yy184, yymsp[-1].minor.yy184, yymsp[-3].minor.yy0, yymsp[-2].minor.yy0, yymsp[0].minor.yy0);
-}
-#line 2172 "parser.c"
-        break;
-      case 99: /* pexpr ::= pexpr LPAREN RPAREN */
-      case 136: /* ty_pexpr ::= pexpr LPAREN RPAREN */ yytestcase(yyruleno==136);
-#line 451 "parser.y"
-{ yygotominor.yy184 = new call_expr_t(yymsp[-2].minor.yy184, 0, yymsp[-1].minor.yy0, yymsp[0].minor.yy0); }
-#line 2178 "parser.c"
-        break;
-      case 100: /* pexpr ::= pexpr LPAREN iexpr_list RPAREN */
-      case 137: /* ty_pexpr ::= pexpr LPAREN iexpr_list RPAREN */ yytestcase(yyruleno==137);
-#line 454 "parser.y"
-{
-	yygotominor.yy184 = new call_expr_t(yymsp[-3].minor.yy184, yymsp[-1].minor.yy6, yymsp[-2].minor.yy0, yymsp[0].minor.yy0);
-}
-#line 2186 "parser.c"
-        break;
-      case 102: /* uexpr ::= PLUS uexpr */
+      case 102: /* uexpr ::= PLUS uexpr */ yytestcase(yyruleno==102);
       case 103: /* uexpr ::= MINUS uexpr */ yytestcase(yyruleno==103);
       case 104: /* uexpr ::= NOT uexpr */ yytestcase(yyruleno==104);
       case 105: /* uexpr ::= AND uexpr */ yytestcase(yyruleno==105);
@@ -2196,9 +2012,189 @@ static void yy_reduce(
       case 145: /* ty_uexpr ::= AND uexpr */ yytestcase(yyruleno==145);
       case 146: /* ty_uexpr ::= TIMES ty_uexpr */ yytestcase(yyruleno==146);
       case 147: /* ty_uexpr ::= XOR uexpr */ yytestcase(yyruleno==147);
-#line 469 "parser.y"
+#line 329 "parser.y"
 { yygotominor.yy184 = new unary_expr_t(yymsp[0].minor.yy184, yymsp[-1].minor.yy0); }
-#line 2202 "parser.c"
+#line 2018 "parser.c"
+        break;
+      case 69: /* type ::= LSB expr RSB type */
+      case 128: /* ty_pexpr ::= LSB expr RSB type */ yytestcase(yyruleno==128);
+#line 330 "parser.y"
+{ yygotominor.yy184 = new array_type_t(yymsp[-2].minor.yy184, yymsp[0].minor.yy184, yymsp[-3].minor.yy0, yymsp[-1].minor.yy0); }
+#line 2024 "parser.c"
+        break;
+      case 70: /* type ::= LSB RSB type */
+      case 129: /* ty_pexpr ::= LSB RSB type */ yytestcase(yyruleno==129);
+#line 331 "parser.y"
+{ yygotominor.yy184 = new array_type_t(0, yymsp[0].minor.yy184, yymsp[-2].minor.yy0, yymsp[-1].minor.yy0); }
+#line 2030 "parser.c"
+        break;
+      case 71: /* type ::= ident DOT ident */
+#line 332 "parser.y"
+{ yygotominor.yy184 = new selector_expr_t(yymsp[-2].minor.yy76, yymsp[0].minor.yy76);   yy_destructor(yypParser,60,&yymsp[-1].minor);
+}
+#line 2036 "parser.c"
+        break;
+      case 72: /* type ::= ident */
+      case 94: /* pexpr ::= ident */ yytestcase(yyruleno==94);
+      case 131: /* ty_pexpr ::= ident */ yytestcase(yyruleno==131);
+#line 333 "parser.y"
+{ yygotominor.yy184 = yymsp[0].minor.yy76; }
+#line 2043 "parser.c"
+        break;
+      case 73: /* type ::= STRUCT LCURLY ofield_semi_list_and_osemi RCURLY */
+      case 74: /* type ::= UNION LCURLY ofield_semi_list_and_osemi RCURLY */ yytestcase(yyruleno==74);
+#line 334 "parser.y"
+{
+	yygotominor.yy184 = new struct_type_t(yymsp[-1].minor.yy84, yymsp[-3].minor.yy0, yymsp[-2].minor.yy0, yymsp[0].minor.yy0);	
+}
+#line 2051 "parser.c"
+        break;
+      case 75: /* type ::= FUNC LPAREN oargs_comma_list RPAREN func_results */
+      case 140: /* ty_pexpr ::= FUNC LPAREN oargs_comma_list RPAREN func_results */ yytestcase(yyruleno==140);
+#line 340 "parser.y"
+{
+	yygotominor.yy184 = new func_type_t(yymsp[-2].minor.yy84, yymsp[0].minor.yy84, yymsp[-4].minor.yy0);
+  yy_destructor(yypParser,50,&yymsp[-3].minor);
+  yy_destructor(yypParser,51,&yymsp[-1].minor);
+}
+#line 2061 "parser.c"
+        break;
+      case 76: /* field_comma_list ::= nametype_list */
+#line 355 "parser.y"
+{
+	yygotominor.yy84 = nametypev_to_fieldv(ctx->diag, yymsp[0].minor.yy135, false);
+}
+#line 2068 "parser.c"
+        break;
+      case 77: /* args_comma_list ::= nametype_list ofunc_ellipsis */
+#line 360 "parser.y"
+{
+	yygotominor.yy84 = nametypev_to_fieldv(ctx->diag, yymsp[-1].minor.yy135, yymsp[0].minor.yy185);
+}
+#line 2075 "parser.c"
+        break;
+      case 78: /* args_comma_list ::= ELLIPSIS */
+#line 363 "parser.y"
+{
+	yygotominor.yy84 = nametypev_to_fieldv(ctx->diag, new nametype_vector_t, true);
+  yy_destructor(yypParser,63,&yymsp[0].minor);
+}
+#line 2083 "parser.c"
+        break;
+      case 79: /* field_semi_list ::= field */
+#line 368 "parser.y"
+{ yygotominor.yy84 = new field_vector_t(1, yymsp[0].minor.yy158); }
+#line 2088 "parser.c"
+        break;
+      case 80: /* field_semi_list ::= field_semi_list SEMICOLON field */
+#line 369 "parser.y"
+{
+	yymsp[-2].minor.yy84->push_back(yymsp[0].minor.yy158); yygotominor.yy84 = yymsp[-2].minor.yy84;
+  yy_destructor(yypParser,20,&yymsp[-1].minor);
+}
+#line 2096 "parser.c"
+        break;
+      case 81: /* nametype_list ::= nametype */
+#line 375 "parser.y"
+{ yygotominor.yy135 = new nametype_vector_t(1, yymsp[0].minor.yy115); }
+#line 2101 "parser.c"
+        break;
+      case 82: /* nametype_list ::= nametype_list COMMA nametype */
+#line 376 "parser.y"
+{
+	yymsp[-2].minor.yy135->push_back(yymsp[0].minor.yy115); yygotominor.yy135 = yymsp[-2].minor.yy135;
+  yy_destructor(yypParser,64,&yymsp[-1].minor);
+}
+#line 2109 "parser.c"
+        break;
+      case 83: /* nametype ::= ident type */
+#line 381 "parser.y"
+{ yygotominor.yy115.name = yymsp[-1].minor.yy76; yygotominor.yy115.type = yymsp[0].minor.yy184; }
+#line 2114 "parser.c"
+        break;
+      case 84: /* nametype ::= type */
+#line 382 "parser.y"
+{ yygotominor.yy115.name = 0; yygotominor.yy115.type = yymsp[0].minor.yy184; }
+#line 2119 "parser.c"
+        break;
+      case 85: /* ofunc_ellipsis ::= COMMA ELLIPSIS */
+#line 392 "parser.y"
+{ yygotominor.yy185 = true;   yy_destructor(yypParser,64,&yymsp[-1].minor);
+  yy_destructor(yypParser,63,&yymsp[0].minor);
+}
+#line 2126 "parser.c"
+        break;
+      case 86: /* ofunc_ellipsis ::= */
+#line 393 "parser.y"
+{ yygotominor.yy185 = false; }
+#line 2131 "parser.c"
+        break;
+      case 87: /* field ::= ident_list type */
+#line 406 "parser.y"
+{ yygotominor.yy158 = new field_t(yymsp[-1].minor.yy154, yymsp[0].minor.yy184); }
+#line 2136 "parser.c"
+        break;
+      case 88: /* field ::= type */
+#line 407 "parser.y"
+{ yygotominor.yy158 = new field_t(0, yymsp[0].minor.yy184); }
+#line 2141 "parser.c"
+        break;
+      case 89: /* basic_lit ::= INT */
+      case 90: /* basic_lit ::= FLOAT */ yytestcase(yyruleno==90);
+      case 91: /* basic_lit ::= STRING */ yytestcase(yyruleno==91);
+      case 92: /* basic_lit ::= CHAR */ yytestcase(yyruleno==92);
+#line 418 "parser.y"
+{ yygotominor.yy18 = new basic_lit_expr_t(yymsp[0].minor.yy0); }
+#line 2149 "parser.c"
+        break;
+      case 93: /* pexpr ::= basic_lit */
+      case 130: /* ty_pexpr ::= basic_lit */ yytestcase(yyruleno==130);
+#line 434 "parser.y"
+{ yygotominor.yy184 = yymsp[0].minor.yy18; }
+#line 2155 "parser.c"
+        break;
+      case 95: /* pexpr ::= LPAREN expr RPAREN */
+      case 132: /* ty_pexpr ::= LPAREN expr RPAREN */ yytestcase(yyruleno==132);
+#line 436 "parser.y"
+{ yygotominor.yy184 = new paren_expr_t(yymsp[-1].minor.yy184, yymsp[-2].minor.yy0, yymsp[0].minor.yy0); }
+#line 2161 "parser.c"
+        break;
+      case 96: /* pexpr ::= pexpr LSB expr RSB */
+      case 133: /* ty_pexpr ::= pexpr LSB expr RSB */ yytestcase(yyruleno==133);
+#line 437 "parser.y"
+{ yygotominor.yy184 = new index_expr_t(yymsp[-3].minor.yy184, yymsp[-1].minor.yy184, yymsp[-2].minor.yy0, yymsp[0].minor.yy0); }
+#line 2167 "parser.c"
+        break;
+      case 97: /* pexpr ::= pexpr DOT IDENT */
+      case 134: /* ty_pexpr ::= pexpr DOT IDENT */ yytestcase(yyruleno==134);
+#line 440 "parser.y"
+{
+	yygotominor.yy184 = new selector_expr_t(yymsp[-2].minor.yy184, new ident_expr_t(yymsp[0].minor.yy0));
+  yy_destructor(yypParser,60,&yymsp[-1].minor);
+}
+#line 2176 "parser.c"
+        break;
+      case 98: /* pexpr ::= pexpr DOT LPAREN type RPAREN */
+      case 135: /* ty_pexpr ::= pexpr DOT LPAREN type RPAREN */ yytestcase(yyruleno==135);
+#line 445 "parser.y"
+{
+	yygotominor.yy184 = new type_cast_expr_t(yymsp[-4].minor.yy184, yymsp[-1].minor.yy184, yymsp[-3].minor.yy0, yymsp[-2].minor.yy0, yymsp[0].minor.yy0);
+}
+#line 2184 "parser.c"
+        break;
+      case 99: /* pexpr ::= pexpr LPAREN RPAREN */
+      case 136: /* ty_pexpr ::= pexpr LPAREN RPAREN */ yytestcase(yyruleno==136);
+#line 451 "parser.y"
+{ yygotominor.yy184 = new call_expr_t(yymsp[-2].minor.yy184, 0, yymsp[-1].minor.yy0, yymsp[0].minor.yy0); }
+#line 2190 "parser.c"
+        break;
+      case 100: /* pexpr ::= pexpr LPAREN iexpr_list RPAREN */
+      case 137: /* ty_pexpr ::= pexpr LPAREN iexpr_list RPAREN */ yytestcase(yyruleno==137);
+#line 454 "parser.y"
+{
+	yygotominor.yy184 = new call_expr_t(yymsp[-3].minor.yy184, yymsp[-1].minor.yy6, yymsp[-2].minor.yy0, yymsp[0].minor.yy0);
+}
+#line 2198 "parser.c"
         break;
       case 109: /* expr ::= expr DIVIDE expr */
       case 110: /* expr ::= expr TIMES expr */ yytestcase(yyruleno==110);
@@ -2240,85 +2236,85 @@ static void yy_reduce(
       case 167: /* ty_expr ::= expr OROR expr */ yytestcase(yyruleno==167);
 #line 487 "parser.y"
 { yygotominor.yy184 = new binary_expr_t(yymsp[-2].minor.yy184, yymsp[0].minor.yy184, yymsp[-1].minor.yy0); }
-#line 2244 "parser.c"
+#line 2240 "parser.c"
         break;
       case 138: /* ty_pexpr ::= STRUCT LCURLY ofield_semi_list_and_osemi RCURLY */
       case 139: /* ty_pexpr ::= UNION LCURLY ofield_semi_list_and_osemi RCURLY */ yytestcase(yyruleno==139);
-#line 542 "parser.y"
+#line 543 "parser.y"
 {
 	yygotominor.yy184 = new struct_type_t(yymsp[-1].minor.yy84, yymsp[-3].minor.yy0, yymsp[-2].minor.yy0, yymsp[0].minor.yy0);
 }
-#line 2252 "parser.c"
+#line 2248 "parser.c"
         break;
       case 168: /* compound_lit ::= LCURLY iexpr_list ocomma RCURLY */
-#line 594 "parser.y"
+#line 595 "parser.y"
 {
 	yygotominor.yy184 = new compound_lit_t(yymsp[-2].minor.yy6, 0, yymsp[-3].minor.yy0, yymsp[0].minor.yy0);
 }
-#line 2259 "parser.c"
+#line 2255 "parser.c"
         break;
       case 169: /* compound_lit ::= LCURLY iexpr_list ocomma RCURLY DOT LPAREN type RPAREN */
-#line 597 "parser.y"
+#line 598 "parser.y"
 {
 	yygotominor.yy184 = new compound_lit_t(yymsp[-6].minor.yy6, yymsp[-1].minor.yy184, yymsp[-7].minor.yy0, yymsp[0].minor.yy0);
   yy_destructor(yypParser,45,&yymsp[-4].minor);
   yy_destructor(yypParser,60,&yymsp[-3].minor);
   yy_destructor(yypParser,50,&yymsp[-2].minor);
 }
-#line 2269 "parser.c"
+#line 2265 "parser.c"
         break;
       case 173: /* iexpr_list ::= iexpr_list COMMA iexpr */
       case 175: /* expr_list ::= expr_list COMMA expr */ yytestcase(yyruleno==175);
-#line 616 "parser.y"
+#line 617 "parser.y"
 { yymsp[-2].minor.yy6->push_back(yymsp[0].minor.yy184); yygotominor.yy6 = yymsp[-2].minor.yy6;   yy_destructor(yypParser,64,&yymsp[-1].minor);
 }
-#line 2276 "parser.c"
+#line 2272 "parser.c"
         break;
       case 177: /* osemi ::= SEMICOLON */
-#line 631 "parser.y"
+#line 632 "parser.y"
 {
   yy_destructor(yypParser,20,&yymsp[0].minor);
 }
-#line 2283 "parser.c"
+#line 2279 "parser.c"
         break;
       case 179: /* ocomma ::= COMMA */
-#line 635 "parser.y"
+#line 636 "parser.y"
 {
   yy_destructor(yypParser,64,&yymsp[0].minor);
 }
-#line 2290 "parser.c"
+#line 2286 "parser.c"
         break;
       case 180: /* oexpr ::= */
       case 182: /* otype ::= */ yytestcase(yyruleno==182);
-#line 639 "parser.y"
+#line 640 "parser.y"
 { yygotominor.yy184 = 0; }
-#line 2296 "parser.c"
+#line 2292 "parser.c"
         break;
       case 184: /* ident ::= IDENT */
-#line 654 "parser.y"
+#line 655 "parser.y"
 { yygotominor.yy76 = new ident_expr_t(yymsp[0].minor.yy0); }
-#line 2301 "parser.c"
+#line 2297 "parser.c"
         break;
       case 185: /* ident_list ::= ident */
-#line 658 "parser.y"
+#line 659 "parser.y"
 { yygotominor.yy154 = new ident_expr_vector_t(1, yymsp[0].minor.yy76); }
-#line 2306 "parser.c"
+#line 2302 "parser.c"
         break;
       case 186: /* ident_list ::= ident_list COMMA ident */
-#line 659 "parser.y"
+#line 660 "parser.y"
 { yymsp[-2].minor.yy154->push_back(yymsp[0].minor.yy76); yygotominor.yy154 = yymsp[-2].minor.yy154;   yy_destructor(yypParser,64,&yymsp[-1].minor);
 }
-#line 2312 "parser.c"
+#line 2308 "parser.c"
         break;
       case 188: /* oargs_comma_list ::= args_comma_list */
-#line 664 "parser.y"
+#line 665 "parser.y"
 { yygotominor.yy84 = yymsp[0].minor.yy84; }
-#line 2317 "parser.c"
+#line 2313 "parser.c"
         break;
       case 190: /* ofield_semi_list_and_osemi ::= field_semi_list osemi */
-#line 669 "parser.y"
+#line 670 "parser.y"
 { yygotominor.yy84 = yymsp[-1].minor.yy84; }
-#line 2322 "parser.c"
+#line 2318 "parser.c"
         break;
       default:
       /* (176) osemi ::= */ yytestcase(yyruleno==176);
@@ -2390,7 +2386,7 @@ static void yy_syntax_error(
 			"unexpected token: %s",
 			token_to_string(ctx->last_token));
 	ctx->diag->report(m);
-#line 2394 "parser.c"
+#line 2390 "parser.c"
   ParseARG_STORE; /* Suppress warning about unused %extra_argument variable */
 }
 

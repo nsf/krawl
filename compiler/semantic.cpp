@@ -2299,15 +2299,6 @@ stype_t *pass2_t::typegen(node_t *expr)
 			return 0;
 		return new_pointer_stype(ttracker, points_to);
 	}
-	case node_t::POINTER_TYPE:
-	{
-		pointer_type_t *e = (pointer_type_t*)expr;
-		stype_t *points_to = typegen(e->ptype);
-
-		if (!points_to)
-			return 0;
-		return new_pointer_stype(ttracker, points_to);
-	}
 	case node_t::FUNC_TYPE:
 	{
 		stype_vector_t args;

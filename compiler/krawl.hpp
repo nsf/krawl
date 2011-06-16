@@ -334,7 +334,6 @@ struct node_t {
 		FUNC_DECL,
 
 		ARRAY_TYPE,
-		POINTER_TYPE,
 		STRUCT_TYPE,
 		FUNC_TYPE,
 	};
@@ -759,20 +758,6 @@ struct array_type_t : node_t {
 
 	array_type_t(node_t *s, node_t *et, token_t *l, token_t *r);
 	~array_type_t();
-	std::string to_string(int indent);
-	source_loc_range_t source_loc_range();
-};
-
-//------------------------------------------------------------------------------
-// pointer_type_t
-//------------------------------------------------------------------------------
-
-struct pointer_type_t : node_t {
-	node_t *ptype;
-	source_loc_t pos;
-
-	pointer_type_t(node_t *pt, token_t *t);
-	~pointer_type_t();
 	std::string to_string(int indent);
 	source_loc_range_t source_loc_range();
 };

@@ -30,7 +30,7 @@ func read_file(filename *byte) (*byte, int) {
 	}
 
 	stdio.fclose(f)
-	return buf, read_n.(int)
+	return buf, read_n
 }
 
 func remove_nondigits(data *byte, size int) int {

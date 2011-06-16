@@ -326,7 +326,7 @@ value_spec(VS) ::= ident_list(IL) otype(OT) ASSIGN(TOK) iexpr_list(EL). {
 //------------------------------------------------------------------------------
 
 %type type { node_t* }
-type(T) ::= TIMES(TOK) type(X).               { T = new pointer_type_t(X, TOK); }
+type(T) ::= TIMES(TOK) type(X).               { T = new unary_expr_t(X, TOK); }
 type(T) ::= LSB(L) expr(LEN) RSB(R) type(EL). { T = new array_type_t(LEN, EL, L, R); }
 type(T) ::= LSB(L) RSB(R) type(EL).           { T = new array_type_t(0, EL, L, R); }
 type(T) ::= ident(P) DOT ident(SEL).          { T = new selector_expr_t(P, SEL); }
@@ -510,7 +510,8 @@ expr(E) ::= expr(L) OROR(T)   expr(R). { E = new binary_expr_t(L, R, T); }
 //------------------------------------------------------------------------------
 // Combined type and expression
 //
-// Here we use a big copy & paste of expr, uexpr and pexpr.
+// Here we use a big copy & paste of expr, uexpr, pexpr and type. If anyone
+// knows how to make it simpler, do it!
 //------------------------------------------------------------------------------
 
 %type ty_pexpr { node_t* }

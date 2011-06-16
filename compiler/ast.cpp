@@ -1220,36 +1220,6 @@ source_loc_range_t array_type_t::source_loc_range()
 }
 
 //------------------------------------------------------------------------------
-// pointer_type_t
-//------------------------------------------------------------------------------
-
-pointer_type_t::pointer_type_t(node_t *pt, token_t *t):
-	node_t(node_t::POINTER_TYPE), ptype(pt), pos(t->pos)
-{
-	delete t;
-}
-
-pointer_type_t::~pointer_type_t()
-{
-	delete ptype;
-}
-
-std::string pointer_type_t::to_string(int indent)
-{
-	std::string out;
-	out += istr(indent) + "node: POINTER_TYPE\n";
-	out += istr(indent) + "type:\n" + ptype->to_string(indent+1);
-	return out;
-}
-
-source_loc_range_t pointer_type_t::source_loc_range()
-{
-	source_loc_range_t end = ptype->source_loc_range();
-	source_loc_range_t slk = {pos, end.end};
-	return slk;
-}
-
-//------------------------------------------------------------------------------
 // field_t
 //------------------------------------------------------------------------------
 
@@ -1901,12 +1871,6 @@ do {								\
 		NODE(array_type_t*);
 		TFIELD(size);
 		TFIELD(etype);
-		break;
-	}
-	case node_t::POINTER_TYPE:
-	{
-		NODE(pointer_type_t*);
-		TFIELD(ptype);
 		break;
 	}
 	case node_t::TYPE_CAST_EXPR:
