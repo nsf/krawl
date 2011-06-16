@@ -572,7 +572,7 @@ stype_t *numeric_binop_compat(stype_t *a, stype_t *b)
 
 stype_t *type_binop_compat(stype_t *a, stype_t *b, unsigned int type)
 {
-	if ((a->type & type) && (b->type && type))
+	if ((a->type & type) && (b->type & type))
 		return non_abstract(a, b);
 
 	return 0;
