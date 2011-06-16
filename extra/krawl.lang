@@ -15,7 +15,7 @@ string delim "`" "`" multiline
 
 keyword = "if|else|for|switch|case|default",
 	"return|continue|fallthrough|break",
-	"func|type|import|const|var|struct",
+	"func|type|import|const|var|struct|union",
 	"true|false|nil|iota"
 
 type = "void|bool|int|uint|byte|float|double",
