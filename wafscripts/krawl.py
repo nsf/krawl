@@ -1,6 +1,6 @@
 from waflib import Utils
 from waflib.Task import Task
-from waflib.TaskGen import feature, before, extension
+from waflib.TaskGen import feature, before, extension, after_method
 from waflib.Tools import ccroot
 import krawl_scan
 
@@ -39,15 +39,19 @@ class krawl(Task):
 	${KRAWL_CLANG_ST:CLANG}
 	${KRAWL_CLANG_PLUGIN_ST:CLANG_PLUGIN}
 	${KRAWL_BRL_OUT_ST:BRL_OUT}
-	${KRAWL_I_ST:INCPATHS}
+	${KRAWL_I_ST:KRAWL_INCPATHS}
 	-o ${TGT[0].bldpath()} ${SRC}
 	""".replace("\n", "")
 
 	color = 'GREEN'
 	scan  = krawl_scan.scan
 
-# hack, add ccroot.apply_incpaths to 'krawl' feature
-feature('krawl')(ccroot.apply_incpaths)
+@feature('krawl')
+@after_method('propagate_uselib_vars', 'process_source')
+def apply_krawl_incpaths(self):
+	lst = self.to_incnodes(self.to_list(getattr(self, 'krawl_includes', [])) + self.env['KRAWL_INCLUDES'])
+	self.includes_nodes = lst
+	self.env['KRAWL_INCPATHS'] = [x.abspath() for x in lst]
 
 #==============================================================================
 # Params:
