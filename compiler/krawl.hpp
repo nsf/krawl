@@ -407,6 +407,8 @@ struct compound_lit_t : node_t {
 	node_t *etype;
 	source_loc_t pos_lp; // {
 	source_loc_t pos_rp; // }
+
+	// codegen
 	std::vector<llvm::Value*> vals;
 
 	compound_lit_t(node_vector_t *elts, node_t *etype,
@@ -534,10 +536,6 @@ struct for_stmt_t : node_t {
 	node_t *post;
 	block_stmt_t *body;
 	source_loc_t pos; // 'for'
-
-	// goto label for post statement in case if I want to issue "continue"
-	// behaviour
-	std::string postgoto;
 
 	for_stmt_t(node_t *i, node_t *c, node_t *p, block_stmt_t *b, token_t *t);
 	~for_stmt_t();
