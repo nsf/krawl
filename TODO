@@ -1,0 +1,33 @@
+ - Fix semantic handling of void functions (no return value).
+ - Optimize code generation for compound literals, use *Constant when possible.
+ - (related to 2) Think about code execution before "main", should we forbid
+   that?
+ - Implement anonymous structures and unions. Implement type embedding (ask
+   nsf).
+ - Implement support for more than one file per module. Improve code that is
+   responsible for that.
+ - Implement proper visibility handling. Probably use Go's scheme, where symbol
+   which starts from a capital letter is public, otherwise private. Add various
+   attributes to override visibility settings and to control mangling (for
+   interfacing with C).
+ - Add an ability to pass CFLAGS to clang plugin for advanced C import. This
+   also requires modifying cache scheme.
+ - Ensure C modules cache is race condition free.
+ - Built-in functions should not be assignable to any type.
+ - Implement different ways to initialize struct/union/array (see how it's done
+   in C).
+ - Implement proper dependency analysis in waf krawl tool (C modules
+   dependencies and other stuff).
+ - Portability: Mac OSX, *BSD, Windows.
+ - Macros/templates system. Syntax and implementation.
+ - Packed structs. Custom alignment settings for declarations. Use attributes.
+ - Volatile and restricted modifiers. Even though attributes are not allowed in
+   function arguments, ask nsf, he knows how to make that.
+ - Built-in type 'complex'. Does anyone need this? Why all modern languages
+   implement that?
+ - Language specification, language conformance testing.
+ - Standard library. Design and implementation.
+ - Syntax for referencing code locations in error messages. Location demangling
+   is delayed until everything is printed, therefore we simply don't have the
+   right data in-place.
+ - C-to-Krawl plugin improvements: extern variable import, etc.
