@@ -7,7 +7,7 @@ def run_test(f)
 	# compile
 	%x[krawl -o test.o #{f} && clang -o test test.o]
 	out = %x[./test]
-	gold = IO.read("#{f}.expected") rescue "To be determined"
+	gold = IO.read("0.#{f}") rescue "To be determined"
 
 	if out != gold then
 		$problems << "#{f}: no match!"
@@ -25,6 +25,10 @@ if ARGV.one? then
 end
 
 Dir["*.krl"].sort.each do |f|
+	if f.start_with?("0.")
+		next
+	end
+
 	if run_test(f)
 		STDOUT.print("+")
 	else
