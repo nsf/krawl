@@ -1549,22 +1549,19 @@ static FILE *open_file_on(std::string *path,
 	return fopen(full.c_str(), "rb");
 }
 
-void import_sdecl_t::load(brawl_context_t *ctx,
-			  std::vector<const char*> *include_dirs,
-			  const char *clang_path,
-			  const char *clang_plugin_path)
+void import_sdecl_t::load(import_context_t *ctx)
 {
 	KRAWL_QASSERT(spec->path->val.type == VALUE_STRING);
 	std::string path = spec->path->val.to_string();
 
 	FILE *f;
 	if (path.substr(path.size()-2, 2) == ".h") {
-		path = update_c_module_hash(path.c_str(), clang_path,
-					    clang_plugin_path);
+		path = update_c_module_hash(path.c_str(), ctx->clang_path,
+					    ctx->clang_plugin_path);
 		f = fopen(path.c_str(), "rb");
 	} else {
 		path += ".brl";
-		f = open_file_on(&path, include_dirs);
+		f = open_file_on(&path, ctx->include_dirs);
 	}
 
 	if (!f)
@@ -2145,10 +2142,7 @@ struct gdecls_collector_t : ast_visitor_t {
 	{
 		if (d->type == SDECL_IMPORT) {
 			import_sdecl_t *id = (import_sdecl_t*)d;
-			id->load(pass->brawl,
-				 pass->include_dirs,
-				 pass->clang_path,
-				 pass->clang_plugin_path);
+			id->load(pass->ictx);
 
 			if (id->decls.empty()) {
 				package_error(id);

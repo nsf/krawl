@@ -318,7 +318,7 @@ void brawl_serializer_t::serialize(FILE_writer_t *cout,
 // Brawl deserializer
 //------------------------------------------------------------------------------
 
-brawl_deserializer_t::brawl_deserializer_t(brawl_context_t *ctx): ctx(ctx)
+brawl_deserializer_t::brawl_deserializer_t(import_context_t *ctx): ctx(ctx)
 {
 }
 

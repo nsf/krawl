@@ -168,14 +168,14 @@ struct mini_all_t {
 	diagnostic_t diag;
 	node_t *ast;
 
-	brawl_context_t brawl;
+	import_context_t ictx;
 
 	mini_all_t(): ast(0)
 	{
 		fill_global_scope(&globalscope, &dtracker, &ttracker);
 		pkgscope.parent = &globalscope;
-		brawl.ttracker = &ttracker;
-		brawl.dtracker = &dtracker;
+		ictx.ttracker = &ttracker;
+		ictx.dtracker = &dtracker;
 	}
 
 	~mini_all_t()
@@ -266,10 +266,7 @@ std::string update_c_module_hash(const char *header, const char *clang_path,
 		&d.pkgscope,
 		&d.pkgdecls,
 		&d.diag,
-		&d.brawl,
-		0, // include_dirs are not necessary for parsing ctokrawl modules
-		0, // clang path is not required
-		0, // clang_plugin_path is not required
+		&d.ictx
 	};
 	pass1_t p1(&p1opts);
 	p1.pass(d.ast);

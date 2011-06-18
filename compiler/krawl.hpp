@@ -82,7 +82,7 @@ uint64_t base62_decode64(const char *in);
 struct stype_t;
 struct sdecl_t;
 struct scope_block_t;
-struct brawl_context_t;
+struct import_context_t;
 struct type_sdecl_t;
 namespace llvm { struct Type; }
 namespace llvm { struct Value; }
@@ -1503,8 +1503,7 @@ struct import_sdecl_t : sdecl_t {
 	import_sdecl_t(import_spec_t *spec);
 	ident_expr_t *get_ident();
 
-	void load(brawl_context_t *ctx, std::vector<const char*> *include_dirs,
-		  const char *clang_path, const char *clang_plugin_path);
+	void load(import_context_t *ctx);
 };
 
 //------------------------------------------------------------------------------
@@ -1692,10 +1691,7 @@ bool is_type(node_t *n, scope_block_t *scope);
 	scope_block_t *pkgscope;					\
 	std::vector<sdecl_t*> *pkgdecls;				\
 	diagnostic_t *diag;						\
-	brawl_context_t *brawl;						\
-	std::vector<const char*> *include_dirs;				\
-	const char *clang_path;						\
-	const char *clang_plugin_path;
+	import_context_t *ictx;
 
 struct pass1_opts_t {
 	PASS1_FIELDS()
@@ -1971,15 +1967,18 @@ struct brawl_serializer_t {
 // Brawl deserializer
 //------------------------------------------------------------------------------
 
-struct brawl_context_t {
+struct import_context_t {
 	unordered_set<std::string> prefixes;
 	unordered_map<std::string, named_stype_t*> named_map;
 	stype_tracker_t *ttracker;
 	sdecl_tracker_t *dtracker;
+	std::vector<const char*> *include_dirs;
+	const char *clang_path;
+	const char *clang_plugin_path;
 };
 
 struct brawl_deserializer_t {
-	brawl_context_t *ctx;
+	import_context_t *ctx;
 
 	std::string cur_prefix;
 	std::string prefix;
@@ -1987,7 +1986,7 @@ struct brawl_deserializer_t {
 	std::vector<stype_t*> stypes;
 	std::vector<sdecl_t*> sdecls;
 
-	brawl_deserializer_t(brawl_context_t *ctx);
+	brawl_deserializer_t(import_context_t *ctx);
 
 	// convert from an index to a pointer (used in restore_*_pointers)
 	stype_t *index_stype(int32_t idx);

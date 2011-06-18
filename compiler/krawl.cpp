@@ -4,6 +4,29 @@
 #include "cityhash/city.h"
 #include <llvm/Support/Timer.h>
 
+struct options_t {
+	// specified from the command line
+	const char *uid;
+	const char *hash_uid;
+	std::string package;
+	bool print_ast;
+	std::string out_name;
+	std::vector<const char*> files;
+	std::vector<const char*> include_dirs;
+	bool dump;
+	bool time;
+	bool deps;
+
+	const char *clang_path;
+	const char *clang_plugin_path;
+
+	// calculated on the fly
+	std::string out_lib;
+	std::string theuid;
+
+	bool is_lib() const { return uid || hash_uid; }
+};
+
 struct all_t {
 	// memory trackers for semantic declarations, types and other stuff
 	sdecl_tracker_t dtracker;
@@ -25,8 +48,8 @@ struct all_t {
 	diagnostic_t diag;
 	node_t* ast;
 
-	// brawl
-	brawl_context_t brawl;
+	// import
+	import_context_t ictx;
 
 	// timers
 	llvm::Timer t_parse;
@@ -35,13 +58,16 @@ struct all_t {
 	llvm::Timer t_pass3;
 	llvm::TimerGroup t_group;
 
-	all_t(): ast(0), t_group("Krawl")
+	all_t(options_t *opts): ast(0), t_group("Krawl")
 	{
 		init_builtin_stypes();
 		fill_global_scope(&globalscope, &dtracker, &ttracker);
 		pkgscope.parent = &globalscope;
-		brawl.ttracker = &ttracker;
-		brawl.dtracker = &dtracker;
+		ictx.ttracker = &ttracker;
+		ictx.dtracker = &dtracker;
+		ictx.include_dirs = &opts->include_dirs;
+		ictx.clang_path = opts->clang_path;
+		ictx.clang_plugin_path = opts->clang_plugin_path;
 
 		t_parse.init("Parse", t_group);
 		t_pass1.init("Pass1", t_group);
@@ -73,29 +99,6 @@ static const struct option longopts[] = {
 	{"clang",        required_argument, 0, 'c'},
 	{"clang-plugin", required_argument, 0, 'C'},
 	{0,          0,                     0, 0}
-};
-
-struct options_t {
-	// specified from the command line
-	const char *uid;
-	const char *hash_uid;
-	std::string package;
-	bool print_ast;
-	std::string out_name;
-	std::vector<const char*> files;
-	std::vector<const char*> include_dirs;
-	bool dump;
-	bool time;
-	bool deps;
-
-	const char *clang_path;
-	const char *clang_plugin_path;
-
-	// calculated on the fly
-	std::string out_lib;
-	std::string theuid;
-
-	bool is_lib() const { return uid || hash_uid; }
 };
 
 static void print_help_and_exit(const char *app)
@@ -319,7 +322,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	all_t d;
+	all_t d(&opts);
 
 #define START_TIMER(timer) if (opts.time) d.timer.startTimer()
 #define STOP_TIMER(timer) if (opts.time) d.timer.stopTimer()
@@ -349,10 +352,7 @@ int main(int argc, char **argv)
 		&d.pkgscope,
 		&d.pkgdecls,
 		&d.diag,
-		&d.brawl,
-		&opts.include_dirs,
-		opts.clang_path,
-		opts.clang_plugin_path
+		&d.ictx,
 	};
 	pass1_t p1(&p1opts);
 	p1.pass(d.ast);
