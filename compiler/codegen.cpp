@@ -1267,6 +1267,7 @@ Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
 		Value *arg = codegen_expr_value(expr->args[0]);
 		arg = codegen_assignment(arg, expr->args[0]->vst.stype,
 					 builtin_named_stypes[BUILTIN_VA_LIST]);
+		arg = ir->CreatePointerCast(arg, Type::getInt8Ty(LLGC)->getPointerTo());
 		return ir->CreateCall(func, arg);
 	} else if (e->sdecl->name == "va_end") {
 		Function *func;
@@ -1274,6 +1275,7 @@ Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
 		Value *arg = codegen_expr_value(expr->args[0]);
 		arg = codegen_assignment(arg, expr->args[0]->vst.stype,
 					 builtin_named_stypes[BUILTIN_VA_LIST]);
+		arg = ir->CreatePointerCast(arg, Type::getInt8Ty(LLGC)->getPointerTo());
 		return ir->CreateCall(func, arg);
 	} else if (e->sdecl->name == "va_copy") {
 		// that's silly, I need something generic here
@@ -1296,6 +1298,8 @@ Value *llvm_backend_t::codegen_builtin_call_expr(call_expr_t *expr)
 					     builtin_named_stypes[BUILTIN_VA_LIST]);
 		args[1] = codegen_assignment(args[1], argtypes[1],
 					     builtin_named_stypes[BUILTIN_VA_LIST]);
+		args[0] = ir->CreatePointerCast(args[0], Type::getInt8Ty(LLGC)->getPointerTo());
+		args[1] = ir->CreatePointerCast(args[1], Type::getInt8Ty(LLGC)->getPointerTo());
 		return ir->CreateCall(func, args.begin(), args.end());
 	} else if (e->sdecl->name == "va_arg") {
 		const Type *ty = llvmtype(expr->args[1]->vst.stype);
