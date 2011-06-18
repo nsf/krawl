@@ -1,7 +1,6 @@
  - Fix semantic handling of void functions (no return value).
  - Optimize code generation for compound literals, use *Constant when possible.
- - (related to 2) Think about code execution before "main", should we forbid
-   that?
+ - Think about code execution before "main", should we forbid that?
  - Implement anonymous structures and unions. Implement type embedding (ask
    nsf).
  - Implement support for more than one file per module. Improve code that is
@@ -21,7 +20,7 @@
  - Portability: Mac OSX, *BSD, Windows.
  - Macros/templates system. Syntax and implementation.
  - Packed structs. Custom alignment settings for declarations. Use attributes.
- - Volatile and restricted modifiers. Even though attributes are not allowed in
+ - Volatile and restrict modifiers. Even though attributes are not allowed in
    function arguments, ask nsf, he knows how to make that.
  - Built-in type 'complex'. Does anyone need this? Why all modern languages
    implement that?
