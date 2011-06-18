@@ -231,7 +231,7 @@ std::string pointer_stype_t::to_string()
 
 int pointer_stype_t::bits()
 {
-	return sizeof(void*) == 8 ? 64 : 32;
+	return pointer_size();
 }
 
 bool pointer_stype_t::points_to_void()
@@ -1344,7 +1344,7 @@ void init_builtin_stypes()
 	builtin_stypes[BUILTIN_ABSTRACT_COMPOUND] = new compound_stype_t;
 	builtin_stypes[BUILTIN_ABSTRACT_MODULE]   = new module_stype_t;
 
-	builtin_stypes[BUILTIN_VA_LIST]           = new pointer_stype_t(builtin_stypes[BUILTIN_VOID]);
+	builtin_stypes[BUILTIN_VA_LIST]           = va_list_structure();
 
 	builtin_stypes[BUILTIN_FUNC]              = new func_stype_t;
 

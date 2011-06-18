@@ -1,5 +1,10 @@
 def build(bld):
 	compiler_src = bld.path.ant_glob("*.cpp cityhash/*.cc")
+	if bld.env.OPT_ARCH == 'amd64':
+		compiler_src.append('compat/compat_amd64.cpp')
+	elif bld.env.OPT_ARCH == 'x86':
+		compiler_src.append('compat/compat_x86.cpp')
+
 	rpath = []
 	if bld.env.OPT_LENSTR:
 		rpath = ['/usr/lib/llvm']

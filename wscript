@@ -1,4 +1,4 @@
-import sys
+import sys, platform
 
 top = '.'
 out = 'build'
@@ -24,6 +24,17 @@ def configure(conf):
 
 	conf.env.OPT_LENSTR = conf.options.lenstr
 	conf.env.OPT_STDLIB = conf.options.stdlib
+
+	machine = platform.machine()
+	if machine == 'x86_64':
+		conf.env.OPT_ARCH = 'amd64'
+	else:
+		conf.env.OPT_ARCH = 'x86'
+
+	# TODO: if new archs are added, this will be necessary
+	#machine in ['i386', 'i486', 'i586', 'i686']:
+	#	conf.env.OPT_ARCH = 'x86'
+
 
 	if sys.platform == "darwin":
 		conf.env.append_unique('LINKFLAGS_CLANG_PLUGIN', '-Wl,-undefined,dynamic_lookup')
