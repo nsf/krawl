@@ -1,9 +1,8 @@
-Krawl is a new programming language being developed mostly by me. It is largely
-based on the mix of Go and C programming languages. Currently it's not ready
-for end user usage, but if you're interested in programming languages
-development, find us on IRC: #krawling @ freenode.
+Krawl was an experimental programming language. It is largely based on the mix
+of Go and C programming languages. Currently the project is abandoned, but still
+here for educational purposes.
 
-For a sneak peek take a look at this document: 
+There is only one document describing krawl: 
 	http://nosmileface.ru/krawl/krawl_by_example.html
 
 Portability notes:
@@ -11,3 +10,5 @@ Portability notes:
  - va_list is broken on amd64
  - almost works on darwin, there are some problems with clang plugin
  - haven't tried it on windows, most likely doesn't work at all
+
+See also big TODO list.
